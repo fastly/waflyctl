@@ -1,5 +1,7 @@
 # Fastly WAF Control Tool 
+
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
+
 Allows you to provision a waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status. 
 
 ## Requirements 
@@ -49,13 +51,13 @@ A domain or service ID is required!
 
 ## Example
 #### Provision a Service with OWASP rule set
-`./waflyctl -serviceid BtYEP3WtWse5mGznpxxxx -apikey $FASTLY_TOKEN -tags OWASP`
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWse5mGznpxxxx -tags OWASP`
 
 #### Add three rules to block mode on a Service with a WAF provisioned
-`./waflyctl -serviceid BtYEP3WtWmx5mGznpxxxx -apikey $FASTLY_TOKEN -rules 94011,93110 -action block`
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWmx5mGznpxxxx -rules 94011,93110,93111 -action block`
 
 #### Delete a WAF previously provisioned
-`./waflyctl -serviceid 7YCnicdpjTvxR2JdzNxxxx -delete -apikey $FASTLY_TOKEN`
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -delete`
 
 #### Customer with PerimeterX bot protection 
 `./waflyctl -apikey $FASTLY_TOKEN -domain myexample.com -with-perimeterx`
