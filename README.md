@@ -2,9 +2,6 @@
 
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
 
-Allows you to provision a waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status. 
-
-
 Thank you for using the "Fastly WAF Control Tool".
 This package will allow you to:
 * rapidly and easily provision a waf object with:
