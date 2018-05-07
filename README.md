@@ -2,8 +2,7 @@
 
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
 
-Thank you for using the "Fastly WAF Control Tool".
-This package will allow you to:
+Thank you for using the "Fastly WAF Control Tool", this tool will allow you to:
 * rapidly and easily provision a waf object with:
   * pre-determine rules
   * OWASP configurations
@@ -21,13 +20,7 @@ This package will allow you to:
 
 ## Description
 
-The Fastly_Cdn module relies on Magento2's page cache functionality and extends
-its Varnish capabilities to leverage Fastly's enhanced caching technology and
-Geo-IP support.
-
-The second component, the VCL, configures Fastly's Varnish to process the
-client requests and Magento's HTML responses according to the Cache-Control
-headers the Fastly_Cdn module adds to every response.
+Allows you to provision a waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status.
 
 ## Documentation
 
