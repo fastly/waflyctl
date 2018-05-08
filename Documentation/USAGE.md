@@ -1,7 +1,6 @@
 # Usage
-waflyctl configuration file contains the default parameters to built or managed a WAF proposed by the
-Fastly SOC. If needed please adjust them in waflyctl.toml, and or pass them via command line
-
+waflyctl configuration file contains the default parameters to build and also managed a WAF. 
+If needed please adjust them in waflyctl.toml, and or pass them via command line.
 ```
 
 A domain or service ID is required!

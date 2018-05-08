@@ -35,6 +35,7 @@ folder.
 - [How to report bugs](Documentation/OPENING-ISSUES.md)
 
 ## Support
+
 Help using this module can be found by posting to
 [Fastly's community forum](https://community.fastly.com/).
 
