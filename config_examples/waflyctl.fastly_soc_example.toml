@@ -32,6 +32,7 @@ RestrictedHeaders = "/proxy/ /lock-token/ /content-range/ /translate/ /if/"
 RFIScoreThreshold = 6
 SessionFixationScoreThreshold = 6
 SQLInjectionScoreThreshold = 6
+XssScoreThreshold = 6
 TotalArgLength = 6400
 WarningAnomalyScore = 3
 
