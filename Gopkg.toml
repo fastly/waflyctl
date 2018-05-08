@@ -31,7 +31,7 @@
 
 [[constraint]]
   name = "github.com/sethvargo/go-fastly"
-  version = "0.4.2"
+  branch = "master"
 
 [[constraint]]
   name = "gopkg.in/resty.v1"

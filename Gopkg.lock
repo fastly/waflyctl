@@ -32,10 +32,10 @@
   revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
 
 [[projects]]
+  branch = "master"
   name = "github.com/sethvargo/go-fastly"
   packages = ["fastly"]
-  revision = "1313668c815c349b4ac0c8595c3f0aadf13db02e"
-  version = "v0.4.2"
+  revision = "d9957b462a473c7a535288cbb8fccb643a34aa59"
 
 [[projects]]
   branch = "master"
@@ -76,6 +76,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "92ef0f9eb0ea3e87cd34bfc22cff8956bc5a69bd4219ba6bbb66c88c646d699c"
+  inputs-digest = "46b32896f575ac86537b68356be36145b9a71a02270ddfa1bc6649bf2f34a137"
   solver-name = "gps-cdcl"
   solver-version = 1

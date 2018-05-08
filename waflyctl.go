@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
-	"github.com/sethvargo/go-fastly/fastly"
 	"gopkg.in/resty.v1"
 	"io"
 	"log"
@@ -18,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"github.com/sethvargo/go-fastly/fastly"
 )
 
 var (
@@ -1138,7 +1138,7 @@ func WithPXCondition(client fastly.Client, serviceID string, version int, config
 
 func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 
-	_, err := client.UpdateWafRuleSets(&fastly.UpdateWAFRuleRuleSetsInput{
+	_, err := client.UpdateWAFRuleSets(&fastly.UpdateWAFRuleRuleSetsInput{
 		Service: serviceID,
 		ID:      wafID,
 	})
@@ -1156,7 +1156,7 @@ func main() {
 	domain := flag.String("domain", "", "[Required] Domain to Provision, you can use Service ID alternatively")
 	serviceID := flag.String("serviceid", "", "[Required] Service ID to Provision")
 	apiKey := flag.String("apikey", "", "[Required] API Key to use")
-	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoin, defaults to https://api.fastly.com")
+	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoint to use.")
 	//emergency := flag.Bool("emergency", false, "is this an emergency provisioning..see [wiki link]")
 	//ssl := flag.Bool("ssl", false, "turn on ssl for this domain..see [wiki link]")
 	configFile := flag.String("config", "waflyctl.toml", "Location of configuration file for waflyctl, defaults to waflyctl.toml")

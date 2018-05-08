@@ -13,6 +13,14 @@ import (
 // a "Service" key, but one was not set.
 var ErrMissingService = errors.New("Missing required field 'Service'")
 
+// ErrMissingStatus is an error that is returned when an input struct requires
+// a "Status" key, but one was not set.
+var ErrMissingStatus = errors.New("Missing required field 'Status'")
+
+// ErrMissingTag is an error that is returned when an input struct requires
+// a "Tag" key, but one was not set.
+var ErrMissingTag = errors.New("Missing required field 'Tag'")
+
 // ErrMissingVersion is an error that is returned when an input struct requires
 // a "Version" key, but one was not set.
 var ErrMissingVersion = errors.New("Missing required field 'Version'")
@@ -80,6 +88,42 @@ var ErrMissingIP = errors.New("Missing requried field 'IP'")
 // ErrMissingWafID is an error that is returned was an input struct
 // requires a "WafID" key, but one was not set
 var ErrMissingWAFID = errors.New("Missing required field 'WAFID'")
+
+// ErrMissingOWASPID is an error that is returned was an input struct
+// requires a "OWASPID" key, but one was not set
+var ErrMissingOWASPID = errors.New("Missing required field 'OWASPID'")
+
+// ErrMissingRuleID is an error that is returned was an input struct
+// requires a "RuleID" key, but one was not set
+var ErrMissingRuleID = errors.New("Missing required field 'RuleID'")
+
+// ErrMissingConfigSetID is an error that is returned was an input struct
+// requires a "ConfigSetID" key, but one was not set
+var ErrMissingConfigSetID = errors.New("Missing required field 'ConfigSetID'")
+
+// ErrMissingWAFList is an error that is returned was an input struct
+// requires a list of WAF id's, but it is empty
+var ErrMissingWAFList = errors.New("WAF slice is empty")
+
+// ErrMissingProjectID is an error that is returned was an input struct
+// requires a Project ID, but one was not set
+var ErrMissingProjectID = errors.New("Missing required field 'ProjectID'")
+
+// ErrMissingDataset is an error that is returned was an input struct
+// requires a Dataset, but one was not set
+var ErrMissingDataset = errors.New("Missing required field 'Dataset'")
+
+// ErrMissingTable is an error that is returned was an input struct
+// requires a Table, but one was not set
+var ErrMissingTable = errors.New("Missing required field 'Table'")
+
+// ErrMissingUser is an error that is returned was an input struct
+// requires a User, but one was not set
+var ErrMissingUser = errors.New("Missing required field 'User'")
+
+// ErrMissingSecretKey is an error that is returned was an input struct
+// requires a Secret Key, but one was not set
+var ErrMissingSecretKey = errors.New("Missing required field 'SecretKey'")
 
 // Ensure HTTPError is, in fact, an error.
 var _ error = (*HTTPError)(nil)
