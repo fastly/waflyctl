@@ -1,4 +1,19 @@
 language: go
 
 go:
-  - "1.x"
+  - 1.9
+  - master
+
+matrix:
+  # It's ok if our code fails on unstable development versions of Go.
+  allow_failures:
+    - go: master
+    
+install: true
+
+before_script:
+  - go get github.com/BurntSushi/toml github.com/sethvargo/go-fastly/fastly gopkg.in/resty.v1
+
+script:
+  - go build waflyctl.go
+  - ./waflyctl
