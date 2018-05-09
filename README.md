@@ -2,75 +2,49 @@
 
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
 
-Allows you to provision a waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status. 
+Thank you for using the "Fastly WAF Control Tool", this tool will allow you to:
+* rapidly and easily provision a waf object with:
+  * pre-determine rules
+  * OWASP configurations
+  * Response and logging endpoints. 
+* manage WAF rules, and their status. 
+* toggle WAF status on/off
+* manage logging endpoints
 
-## Requirements 
-- Have a Fastly API Key in-hand with edit privilages
-- optionally if you are not running Darwin/x86 (OSX) then see [Build](#build)
+## Contents
 
-## Installation 
-- `git clone https://github.com/fastly/waflyctl.git .`
-- `cd waflyctl && chmod +x waflyctl`
-- `./waflyctl`
+- [Description](#description)
+- [Documentation](#documentation)
+- [Support](#support)
+- [Contributing](#contributing)
 
-## Usage
-waflyctl configuration file contains the default parameters to built or managed a WAF proposed by the
-Fastly SOC. If needed please adjust them in waflyctl.toml, and or pass them via command line
+## Description
 
-```
+Allows you to provision a waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status.
 
-A domain or service ID is required!
+## Documentation
 
-  -action string
-    	Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.
-  -apiendpoint string
-    	Fastly API endpoin, defaults to https://api.fastly.com (default "https://api.fastly.com")
-  -apikey string
-    	[Required] API Key to use
-  -config string
-    	Location of configuration file for waflyctl, defaults to waflyctl.toml (default "waflyctl.toml")
-  -delete
-    	When set removes a WAF configuration created with waflyctl.
-  -delete-logs
-    	When set removes WAF logging configuration.
-  -domain string
-    	[Required] Domain to Provision, you can use Service ID alternatively
-  -owasp
-    	When set edits the OWASP object base on the settings in the configuration file.
-  -rules string
-    	Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..
-  -serviceid string
-    	[Required] Service ID to Provision
-  -status string
-    	Disable or Enable the WAF. A disabled WAF will not block any traffic.
-  -tags string
-    	Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php
-  -with-perimeterx
-    	Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.
-```
+Documentation for this module can be found in the
+[Documentation](Documentation/)
+folder.
 
-## Example
-#### Provision a Service with OWASP rule set
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWse5mGznpxxxx -tags OWASP`
+- [Requirements and Installation](Documentation/INSTALLATION.md)
+- [Usage](Documentation/USAGE.md)
+- [Examples](Documentation/EXAMPLES.md)
+- [Build](Documentation/BUILD.md)
+- [How to report bugs](Documentation/OPENING-ISSUES.md)
 
-#### Add three rules to block mode on a Service with a WAF provisioned
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWmx5mGznpxxxx -rules 94011,93110,93111 -action block`
+## Support
 
-#### Delete a WAF previously provisioned
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -delete`
+Help using this module can be found by posting to
+[Fastly's community forum](https://community.fastly.com/).
 
-#### Customer with PerimeterX bot protection 
-`./waflyctl -apikey $FASTLY_TOKEN -domain myexample.com -with-perimeterx`
+For Fastly customers with a [Support Package](https://www.fastly.com/support)
+please reach out via the normal channels.
 
-#### Only edit OWASP object base on what it is set on the config file
-`./waflyctl -apikey $FASTLY_TOKEN -domain myexample.com -owasp`
+If there are issues/errors with integrating the module, please post
+[details](Documentation/OPENING-ISSUES.md) in the GitHub repository issues.
 
-#### Disable a WAF, stop it for blocking traffic if something goes horribly wrong
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -status disable`
-
-##  Build
- - install [Go](https://golang.org/doc/install) 
- - `cd soc/waflyctl`
- - `go get github.com/BurntSushi/toml github.com/sethvargo/go-fastly/fastly gopkg.in/resty.v1`
- - `go build waflyctl.go`
- - `./waflyctl`
+## Contributing
+We welcome pull requests for issues and new functionality. Please see
+[Contributing](Documentation/CONTRIBUTING.md) for more details.
