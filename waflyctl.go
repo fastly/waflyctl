@@ -119,6 +119,7 @@ type owaspSettings struct {
 	RFIScoreThreshold             int
 	SessionFixationScoreThreshold int
 	SQLInjectionScoreThreshold    int
+	XssScoreThreshold             int
 	TotalArgLength                int
 	WarningAnomalyScore           int
 }
@@ -557,6 +558,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 			RFIScoreThreshold:             config.Owasp.RFIScoreThreshold,
 			SessionFixationScoreThreshold: config.Owasp.SessionFixationScoreThreshold,
 			SQLInjectionScoreThreshold:    config.Owasp.SQLInjectionScoreThreshold,
+			XSSScoreThreshold:             config.Owasp.XssScoreThreshold,
 			TotalArgLength:                config.Owasp.TotalArgLength,
 			WarningAnomalyScore:           config.Owasp.WarningAnomalyScore,
 		})
@@ -587,6 +589,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 		Info.Println(" - RFIScoreThreshold:", owasp.RFIScoreThreshold)
 		Info.Println(" - SessionFixationScoreThreshold:", owasp.SessionFixationScoreThreshold)
 		Info.Println(" - SQLInjectionScoreThreshold:", owasp.SQLInjectionScoreThreshold)
+		Info.Println(" - XssScoreThreshold:", owasp.XSSScoreThreshold)
 		Info.Println(" - TotalArgLength:", owasp.TotalArgLength)
 		Info.Println(" - WarningAnomalyScore:", owasp.WarningAnomalyScore)
 
@@ -619,6 +622,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 			RFIScoreThreshold:             config.Owasp.RFIScoreThreshold,
 			SessionFixationScoreThreshold: config.Owasp.SessionFixationScoreThreshold,
 			SQLInjectionScoreThreshold:    config.Owasp.SQLInjectionScoreThreshold,
+			XSSScoreThreshold:             config.Owasp.XssScoreThreshold,
 			TotalArgLength:                config.Owasp.TotalArgLength,
 			WarningAnomalyScore:           config.Owasp.WarningAnomalyScore,
 		})
@@ -649,6 +653,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 		Info.Println(" - RFIScoreThreshold:", owasp.RFIScoreThreshold)
 		Info.Println(" - SessionFixationScoreThreshold:", owasp.SessionFixationScoreThreshold)
 		Info.Println(" - SQLInjectionScoreThreshold:", owasp.SQLInjectionScoreThreshold)
+		Info.Println(" - XssScoreThreshold:", owasp.XSSScoreThreshold)
 		Info.Println(" - TotalArgLength:", owasp.TotalArgLength)
 		Info.Println(" - WarningAnomalyScore:", owasp.WarningAnomalyScore)
 		return true
@@ -1209,7 +1214,7 @@ func main() {
         ` + `----------`
 
 	fmt.Println(logo)
-	fmt.Println("Fastly WAF Control Tool v1.20180501 #team-soc")
+	fmt.Println("Fastly WAF Control Tool v1.20180509 #team-soc")
 
 	//run init to get our logging configured
 	var config tomlConfig
