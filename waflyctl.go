@@ -1159,7 +1159,7 @@ func main() {
 	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoint to use.")
 	//emergency := flag.Bool("emergency", false, "is this an emergency provisioning..see [wiki link]")
 	//ssl := flag.Bool("ssl", false, "turn on ssl for this domain..see [wiki link]")
-	configFile := flag.String("config", "waflyctl.toml", "Location of configuration file for waflyctl, defaults to waflyctl.toml")
+	configFile := flag.String("config", "waflyctl.toml", "Location of configuration file for waflyctl.")
 
 	//var blocklist string
 	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
