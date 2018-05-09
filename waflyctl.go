@@ -1183,15 +1183,15 @@ func main() {
 	//check for empty args
 	switch {
 	case *domain == "" && *serviceID == "":
-		fmt.Println("A domain or service ID is required!\n")
+		fmt.Println("A domain or service ID is required!")
 		flag.PrintDefaults()
 		os.Exit(1)
 	case *apiKey == "":
-		fmt.Println("API Key is required!\n")
+		fmt.Println("API Key is required!")
 		flag.PrintDefaults()
 		os.Exit(1)
 	case *configFile == "":
-		fmt.Println("Config File is required!\n")
+		fmt.Println("Config File is required!")
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
