@@ -8,7 +8,7 @@ matrix:
   # It's ok if our code fails on unstable development versions of Go.
   allow_failures:
     - go: master
-    
+
 install: true
 
 before_script:
