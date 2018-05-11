@@ -104,7 +104,7 @@ K1pp74P1S8SqtCr4fKGxhZSM9AyHDPSsQPhZSZg=
 -----END CERTIFICATE-----
 '''
 tlshostname = "soc-logging.service.secretcdn.net"
-format = '''{\"type\":\"waf\",\"request_id\":\"%{req.http.fastly-soc-x-request-id}V\",\"rule_id\":\"%{waf.rule_id}V\",\"severity\":\"%{waf.severity}V\",\"anomaly_score\":\"%{waf.anomaly_score}V\",\"logdata\":\"%{cstr_escape(waf.logdata)}V\",\"waf_message\":\"%{waf.message}V\"}'''
+format = '''{\"type\":\"waf\",\"request_id\":\"%{req.http.fastly-soc-x-request-id}V\",\"rule_id\":\"%{waf.rule_id}V\",\"severity\":\"%{waf.severity}V\",\"anomaly_score\":\"%{waf.anomaly_score}V\",\"logdata\":\"%{cstr_escape(waf.logdata)}V\",\"waf_message\":\"%{cstr_escape(waf.message)}V\"}'''
 
 
 [vclsnippet]
