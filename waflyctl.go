@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
+	"github.com/sethvargo/go-fastly/fastly"
 	"gopkg.in/resty.v1"
 	"io"
 	"log"
@@ -17,7 +18,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/sethvargo/go-fastly/fastly"
 )
 
 var (
@@ -1297,7 +1297,7 @@ func main() {
 		*serviceID = FindServiceID(*domain, *apiKey, config.APIEndpoint)
 	}
 	//create Fastly client
-	client, err := fastly.NewClient(*apiKey)
+	client, err := fastly.NewClientForEndpoint(*apiKey, config.APIEndpoint)
 	if err != nil {
 		Error.Fatal(err)
 	}
