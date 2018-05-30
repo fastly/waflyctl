@@ -1,7 +1,7 @@
 
 logpath = "waflyctl.log"
 apiendpoint = "https://api.fastly.com"
-tags = ["OWASP","language-html","language-htm","language-css","language-jpg","language-json","reputation-Malicious IP","reputation-Tor Exit Node"]
+tags = ["OWASP","language-html","language-htm","language-css","language-jpg","language-json"]
 action = "log"
 rules = []
 
