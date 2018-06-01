@@ -204,15 +204,15 @@ type Rule struct {
 		ID         string `json:"id"`
 		Type       string `json:"type"`
 		Attributes struct {
-			Accuracy interface{} `json:"accuracy"`
-			Maturity interface{} `json:"maturity"`
-			Message  string      `json:"message"`
-			Revision string      `json:"revision"`
-			Severity int         `json:"severity"`
-			Version  interface{} `json:"version"`
-			RuleID   string      `json:"rule_id"`
-			Source   interface{} `json:"source"`
-			Vcl      interface{} `json:"vcl"`
+			Message       string      `json:"message"`
+			Origin        string      `json:"origin"`
+			ParanoiaLevel int         `json:"paranoia_level"`
+			Revision      string      `json:"revision"`
+			Severity      int         `json:"severity"`
+			Version       interface{} `json:"version"`
+			RuleID        string      `json:"rule_id"`
+			Source        interface{} `json:"source"`
+			Vcl           interface{} `json:"vcl"`
 		} `json:"attributes"`
 	} `json:"included"`
 }
