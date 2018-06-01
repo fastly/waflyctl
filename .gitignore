@@ -15,3 +15,7 @@
 
 # make sure we do not safe logs
 *.log
+
+#random project things we do not want committed
+.DS_Store
+.idea/
