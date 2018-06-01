@@ -1,8 +1,4 @@
-/*
-WAF provisioning tool
-Author: @Enrique (enrique@fastly.com)
-*/
-
+// main.go
 package main
 
 import (

@@ -1,6 +1,7 @@
 # .goreleaser.yml
 # Build customization
 builds:
+  - main: waflyctl.go
   - binary: waflyctl
     goos:
       - windows
