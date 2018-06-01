@@ -2,7 +2,7 @@
 
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
 
-[![Build Status](https://travis-ci.com/fastly/waflyctl.svg?token=83kKx7scGq3h69fnK6JA&branch=master)](https://travis-ci.com/fastly/waflyctl) [![GitHub issues](https://img.shields.io/github/issues/fastly/waflyctl.svg)](https://github.com/fastly/waflyctl/issues) 
+[![Build Status](https://travis-ci.com/fastly/waflyctl.svg?token=83kKx7scGq3h69fnK6JA&branch=master)](https://travis-ci.com/fastly/waflyctl) 
 
 Thank you for using the "Fastly WAF Control Tool", this tool will allow you to:
 * rapidly and easily provision a waf object with:
