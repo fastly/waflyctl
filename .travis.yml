@@ -10,12 +10,10 @@ before_script:
   - go get github.com/golang/dep/cmd/dep
 
 script:
-  - dep ensure
-  - go vet
+  - dep ensure 
+  - go vet 
   - staticcheck
-  - golint
-  - go build waflyctl.go
-  - ./waflyctl || exit 0
+  - golint -set_exit_status
 
 # calls goreleaser
 after_success:
