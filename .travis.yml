@@ -4,17 +4,16 @@ go:
   - 1.9
   - master
 
-matrix:
-  # It's ok if our code fails on unstable development versions of Go.
-  allow_failures:
-    - go: master
-
-install: true
-
 before_script:
-  - go get github.com/BurntSushi/toml github.com/sethvargo/go-fastly/fastly gopkg.in/resty.v1
+  - go get github.com/golang/lint/golint
+  - go get honnef.co/go/tools/cmd/staticcheck
+  - go get github.com/golang/dep/cmd/dep
 
 script:
+  - dep ensure
+  - go vet
+  - staticcheck
+  - golint
   - go build waflyctl.go
   - ./waflyctl || exit 0
 

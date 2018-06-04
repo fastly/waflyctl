@@ -27,6 +27,10 @@ var (
 	Info    *log.Logger
 	Warning *log.Logger
 	Error   *log.Logger
+
+	// version number
+	version = "dev"
+	date    = "unknown"
 )
 
 //init function starts our logger
@@ -1214,7 +1218,10 @@ func main() {
         ` + `----------`
 
 	fmt.Println(logo)
-	fmt.Println("Fastly WAF Control Tool v1.20180509 #team-soc")
+
+	// grab version and build
+
+	fmt.Println("Fastly WAF Control Tool version: " + version + "built on " + date + " by #team-soc")
 
 	//run init to get our logging configured
 	var config tomlConfig
