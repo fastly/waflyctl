@@ -521,20 +521,22 @@ func wafContainer(client fastly.Client, serviceID string, version int, config to
 func createOWASP(client fastly.Client, serviceID, wafID string, version int, config tomlConfig) bool {
 	//add tagging logic
 
-	owasp, err := client.GetOWASP(&fastly.GetOWASPInput{
+	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
 		Service: serviceID,
 		ID:      wafID,
 	})
 
 	if owasp.ID == "" {
-		owasp, err = client.CreateOWASP(&fastly.CreateOWASPInput{
+		owasp, err := client.CreateOWASP(&fastly.CreateOWASPInput{
 			Service: serviceID,
 			ID:      wafID,
 		})
+
 		if err != nil {
 			Error.Print(err)
 			return false
 		}
+
 		owasp, err = client.UpdateOWASP(&fastly.UpdateOWASPInput{
 			Service:                       serviceID,
 			ID:                            wafID,
@@ -599,7 +601,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 
 	} else {
 
-		owasp, err = client.UpdateOWASP(&fastly.UpdateOWASPInput{
+		owasp, err := client.UpdateOWASP(&fastly.UpdateOWASPInput{
 			Service:                       serviceID,
 			ID:                            wafID,
 			OWASPID:                       owasp.ID,
