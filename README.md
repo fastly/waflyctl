@@ -1,10 +1,13 @@
-# Fastly WAF Control Tool 
+# [Fastly WAF Control Tool](https://github.com/fastly/waflyctl/releases) 
 
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
 
 [![Build Status](https://travis-ci.com/fastly/waflyctl.svg?token=83kKx7scGq3h69fnK6JA&branch=master)](https://travis-ci.com/fastly/waflyctl) 
 
-Thank you for using the "Fastly WAF Control Tool", this tool will allow you to:
+Thank you for using the "Fastly WAF Control Tool", you will find the latest version in the
+[release](https://github.com/fastly/waflyctl/releases) page.
+
+this tool will allow you to:
 * rapidly and easily provision a waf object with:
   * pre-determine rules
   * OWASP configurations
