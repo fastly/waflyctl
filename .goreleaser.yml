@@ -19,3 +19,4 @@ archive:
   files:
     - waflyctl.toml
     - config_examples/waflyctl.fastly_soc_example.toml 
+    - README.md
