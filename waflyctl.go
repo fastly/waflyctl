@@ -275,17 +275,14 @@ func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOM
 	for _, version := range body.Versions {
 		if version.Active == true {
 			activeVersion = version.Number
+			return activeVersion
 		}
 	}
 
-	//check if we found an active version otherwise exit
-	if activeVersion == 0 {
-		Error.Println("Found no active version on the service..exiting")
-		os.Exit(1)
-	}
-
-	//return active version
-	return activeVersion
+	// return false if no active version is found
+	Error.Println("Found no active version on the service..exiting")
+	os.Exit(1)
+	return 0
 }
 func cloneVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig, activeVersion int) (bool, int) {
 
