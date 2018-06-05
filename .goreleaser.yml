@@ -1,10 +1,22 @@
 # .goreleaser.yml
 # Build customization
 builds:
-  - binary: waflyctl
+  - main: waflyctl.go
+    binary: waflyctl
     goos:
       - windows
       - darwin
       - linux
     goarch:
       - amd64
+# Archive customization
+archive:
+  format: tar.gz
+  replacements:
+    amd64: 64-bit
+    darwin: macOS
+    linux: Tux
+  files:
+    - waflyctl.toml
+    - config_examples/waflyctl.fastly_soc_example.toml 
+    - README.md

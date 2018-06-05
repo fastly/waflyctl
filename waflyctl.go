@@ -23,22 +23,192 @@ import (
 var (
 	//logging variables
 	logFile string
-	Trace   *log.Logger
-	Info    *log.Logger
+
+	//Trace level logging NOT USED
+	Trace *log.Logger
+
+	//Info level logging
+	Info *log.Logger
+
+	//Warning level logging
 	Warning *log.Logger
-	Error   *log.Logger
+
+	//Error level logging
+	Error *log.Logger
+
+	// version number
+	version = "dev"
+	date    = "unknown"
 )
 
-//init function starts our logger
-func Init(
+// TOMLConfig is the applications config file
+type TOMLConfig struct {
+	Logpath       string
+	APIEndpoint   string
+	Tags          []string
+	Action        string
+	Rules         []int64
+	DisabledRules []int64
+	Owasp         owaspSettings
+	Weblog        WeblogSettings
+	Waflog        WaflogSettings
+	Vclsnippet    VCLSnippetSettings
+	Response      ResponseSettings
+	Prefetch      PrefetchSettings
+}
 
-	//configure logging
+type owaspSettings struct {
+	AllowedHTTPVersions           string
+	AllowedMethods                string
+	AllowedRequestContentType     string
+	ArgLength                     int
+	ArgNameLength                 int
+	CombinedFileSizes             int
+	CriticalAnomalyScore          int
+	CRSValidateUTF8Encoding       bool
+	ErrorAnomalyScore             int
+	HTTPViolationScoreThreshold   int
+	InboundAnomalyScoreThreshold  int
+	LFIScoreThreshold             int
+	MaxFileSize                   int
+	MaxNumArgs                    int
+	NoticeAnomalyScore            int
+	ParanoiaLevel                 int
+	PHPInjectionScoreThreshold    int
+	RCEScoreThreshold             int
+	RestrictedExtensions          string
+	RestrictedHeaders             string
+	RFIScoreThreshold             int
+	SessionFixationScoreThreshold int
+	SQLInjectionScoreThreshold    int
+	XSSScoreThreshold             int
+	TotalArgLength                int
+	WarningAnomalyScore           int
+}
+
+// WeblogSettings parameters for logs in config file
+type WeblogSettings struct {
+	Name        string
+	Address     string
+	Port        uint
+	Tlscacert   string
+	Tlshostname string
+	Format      string
+}
+
+// VCLSnippetSettings parameters for snippets in config file
+type VCLSnippetSettings struct {
+	Name     string
+	Content  string
+	Type     string
+	Priority int
+	Dynamic  int
+}
+
+// Version information from Fastly API
+type Version struct {
+	PublishKey string `json:"publish_key"`
+	Name       string `json:"name"`
+	Versions   []struct {
+		Testing   bool        `json:"testing"`
+		Locked    bool        `json:"locked"`
+		Number    int         `json:"number"`
+		Active    bool        `json:"active"`
+		ServiceID string      `json:"service_id"`
+		Staging   bool        `json:"staging"`
+		CreatedAt time.Time   `json:"created_at"`
+		DeletedAt interface{} `json:"deleted_at"`
+		Comment   string      `json:"comment"`
+		UpdatedAt time.Time   `json:"updated_at"`
+		Deployed  bool        `json:"deployed"`
+	} `json:"versions"`
+	DeletedAt  interface{} `json:"deleted_at"`
+	CreatedAt  time.Time   `json:"created_at"`
+	Comment    string      `json:"comment"`
+	CustomerID string      `json:"customer_id"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+	ID         string      `json:"id"`
+}
+
+// WaflogSettings parameters from config
+type WaflogSettings struct {
+	Name        string
+	Address     string
+	Port        uint
+	Tlscacert   string
+	Tlshostname string
+	Format      string
+}
+
+// ResponseSettings parameters from config
+type ResponseSettings struct {
+	Name           string
+	HTTPStatusCode uint
+	HTTPResponse   string
+	ContentType    string
+	Content        string
+}
+
+// PrefetchSettings parameters from config
+type PrefetchSettings struct {
+	Name      string
+	Statement string
+	Type      string
+	Priority  int
+}
+
+// Service information from Fastly API
+type Service struct {
+	DomainName    string `json:"domain_name"`
+	ServiceID     string `json:"service_id"`
+	ActiveVersion int    `json:"active_version"`
+}
+
+// Features from Fastly API
+type Features struct {
+	Features []string `json:"features"`
+}
+
+// Rule from Fastly API
+type Rule struct {
+	Included []struct {
+		ID         string `json:"id"`
+		Type       string `json:"type"`
+		Attributes struct {
+			Message       string      `json:"message"`
+			Origin        string      `json:"origin"`
+			ParanoiaLevel int         `json:"paranoia_level"`
+			Revision      string      `json:"revision"`
+			Severity      int         `json:"severity"`
+			Version       interface{} `json:"version"`
+			RuleID        string      `json:"rule_id"`
+			Source        interface{} `json:"source"`
+			Vcl           interface{} `json:"vcl"`
+		} `json:"attributes"`
+	} `json:"included"`
+}
+
+// Snippet from Fastly API
+type Snippet []struct {
+	ID        string      `json:"id"`
+	ServiceID string      `json:"service_id"`
+	Version   string      `json:"version"`
+	Name      string      `json:"name"`
+	Priority  string      `json:"priority"`
+	Dynamic   string      `json:"dynamic"`
+	Type      string      `json:"type"`
+	Content   interface{} `json:"content"`
+}
+
+//Init function starts our logger
+func Init(
+	// configure logging
 	infoHandle io.Writer,
 	warningHandle io.Writer,
-	errorHandle io.Writer, configFile string) tomlConfig {
+	errorHandle io.Writer, configFile string) TOMLConfig {
 
 	//load configs
-	var config tomlConfig
+	var config TOMLConfig
 	if _, err := toml.DecodeFile(configFile, &config); err != nil {
 		fmt.Println("Could not read config file -", err)
 		os.Exit(1)
@@ -80,155 +250,7 @@ func Init(
 	return config
 }
 
-type tomlConfig struct {
-	Logpath       string
-	APIEndpoint   string
-	Tags          []string
-	Action        string
-	Rules         []int64
-	DisabledRules []int64
-	Owasp         owaspSettings
-	Weblog        WeblogSettings
-	Waflog        WaflogSettings
-	Vclsnippet    VCLSnippetSettings
-	Response      ResponseSettings
-	Prefetch      PrefetchSettings
-}
-
-type owaspSettings struct {
-	AllowedHTTPVersions           string
-	AllowedMethods                string
-	AllowedRequestContentType     string
-	ArgLength                     int
-	ArgNameLength                 int
-	CombinedFileSizes             int
-	CriticalAnomalyScore          int
-	CRSValidateUTF8Encoding       bool
-	ErrorAnomalyScore             int
-	HTTPViolationScoreThreshold   int
-	InboundAnomalyScoreThreshold  int
-	LFIScoreThreshold             int
-	MaxFileSize                   int
-	MaxNumArgs                    int
-	NoticeAnomalyScore            int
-	ParanoiaLevel                 int
-	PHPInjectionScoreThreshold    int
-	RCEScoreThreshold             int
-	RestrictedExtensions          string
-	RestrictedHeaders             string
-	RFIScoreThreshold             int
-	SessionFixationScoreThreshold int
-	SQLInjectionScoreThreshold    int
-	XssScoreThreshold             int
-	TotalArgLength                int
-	WarningAnomalyScore           int
-}
-
-type WeblogSettings struct {
-	Name        string
-	Address     string
-	Port        uint
-	Tlscacert   string
-	Tlshostname string
-	Format      string
-}
-
-type VCLSnippetSettings struct {
-	Name     string
-	Content  string
-	Type     string
-	Priority int
-	Dynamic  int
-}
-
-type Version struct {
-	PublishKey string `json:"publish_key"`
-	Name       string `json:"name"`
-	Versions   []struct {
-		Testing   bool        `json:"testing"`
-		Locked    bool        `json:"locked"`
-		Number    int         `json:"number"`
-		Active    bool        `json:"active"`
-		ServiceID string      `json:"service_id"`
-		Staging   bool        `json:"staging"`
-		CreatedAt time.Time   `json:"created_at"`
-		DeletedAt interface{} `json:"deleted_at"`
-		Comment   string      `json:"comment"`
-		UpdatedAt time.Time   `json:"updated_at"`
-		Deployed  bool        `json:"deployed"`
-	} `json:"versions"`
-	DeletedAt  interface{} `json:"deleted_at"`
-	CreatedAt  time.Time   `json:"created_at"`
-	Comment    string      `json:"comment"`
-	CustomerID string      `json:"customer_id"`
-	UpdatedAt  time.Time   `json:"updated_at"`
-	ID         string      `json:"id"`
-}
-
-type WaflogSettings struct {
-	Name        string
-	Address     string
-	Port        uint
-	Tlscacert   string
-	Tlshostname string
-	Format      string
-}
-
-type ResponseSettings struct {
-	Name           string
-	HttpStatusCode uint
-	HttpResponse   string
-	ContentType    string
-	Content        string
-}
-
-type PrefetchSettings struct {
-	Name      string
-	Statement string
-	Type      string
-	Priority  int
-}
-
-type Service struct {
-	Domain_name    string `json:"domain_name"`
-	Service_id     string `json:"service_id"`
-	Active_version int    `json:"active_version"`
-}
-
-type Features struct {
-	Features []string `json:"features"`
-}
-
-type Rule struct {
-	Included []struct {
-		ID         string `json:"id"`
-		Type       string `json:"type"`
-		Attributes struct {
-			Message       string      `json:"message"`
-			Origin        string      `json:"origin"`
-			ParanoiaLevel int         `json:"paranoia_level"`
-			Revision      string      `json:"revision"`
-			Severity      int         `json:"severity"`
-			Version       interface{} `json:"version"`
-			RuleID        string      `json:"rule_id"`
-			Source        interface{} `json:"source"`
-			Vcl           interface{} `json:"vcl"`
-		} `json:"attributes"`
-	} `json:"included"`
-}
-
-type Snippet []struct {
-	ID        string      `json:"id"`
-	ServiceID string      `json:"service_id"`
-	Version   string      `json:"version"`
-	Name      string      `json:"name"`
-	Priority  string      `json:"priority"`
-	Dynamic   string      `json:"dynamic"`
-	Type      string      `json:"type"`
-	Content   interface{} `json:"content"`
-}
-
-func getActiveVersion(client fastly.Client, serviceID, apiKey string, config tomlConfig) int {
+func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig) int {
 
 	var activeVersion int
 
@@ -265,7 +287,7 @@ func getActiveVersion(client fastly.Client, serviceID, apiKey string, config tom
 	//return active version
 	return activeVersion
 }
-func cloneVersion(client fastly.Client, serviceID, apiKey string, config tomlConfig, activeVersion int) (bool, int) {
+func cloneVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig, activeVersion int) (bool, int) {
 
 	Info.Printf("cloning current service version #%v", activeVersion)
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
@@ -284,7 +306,7 @@ func cloneVersion(client fastly.Client, serviceID, apiKey string, config tomlCon
 
 }
 
-func prefetchCondition(client fastly.Client, serviceID string, version int, config tomlConfig) bool {
+func prefetchCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
 
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
@@ -320,7 +342,7 @@ func prefetchCondition(client fastly.Client, serviceID string, version int, conf
 	return true
 }
 
-func responseObject(client fastly.Client, serviceID string, version int, config tomlConfig) bool {
+func responseObject(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
 	responses, err := client.ListResponseObjects(&fastly.ListResponseObjectsInput{
 		Service: serviceID,
 		Version: version,
@@ -342,8 +364,8 @@ func responseObject(client fastly.Client, serviceID string, version int, config 
 		Service:     serviceID,
 		Version:     version,
 		Name:        config.Response.Name,
-		Status:      config.Response.HttpStatusCode,
-		Response:    config.Response.HttpResponse,
+		Status:      config.Response.HTTPStatusCode,
+		Response:    config.Response.HTTPResponse,
 		Content:     config.Response.Content,
 		ContentType: config.Response.ContentType,
 	})
@@ -355,7 +377,7 @@ func responseObject(client fastly.Client, serviceID string, version int, config 
 }
 
 //func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config tomlConfig)
-func vclSnippet(serviceID, apiKey string, version int, config tomlConfig) bool {
+func vclSnippet(serviceID, apiKey string, version int, config TOMLConfig) bool {
 	//Work on Tags first
 	//API Endpoint to call for domain searches
 	//strconv.FormatInt(rule, 10)
@@ -401,14 +423,15 @@ func vclSnippet(serviceID, apiKey string, version int, config tomlConfig) bool {
 
 	if resp.Status() == "200 OK" {
 		return true
-	} else {
-		Error.Println("Could not add dynamic VCL snippet Fastly_WAF_Snippet the response was: ", resp.String())
-		return false
 	}
+
+	Error.Println("Could not add dynamic VCL snippet Fastly_WAF_Snippet the response was: ", resp.String())
+	return false
 
 }
 
-func FastlySOCLogging(client fastly.Client, serviceID string, version int, config tomlConfig) bool {
+// FastlySOCLogging configures the logging endpoints for the customer
+func FastlySOCLogging(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
 	//add logging logic to service
 	// create req logging endpoint
 	_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
@@ -454,6 +477,8 @@ func FastlySOCLogging(client fastly.Client, serviceID string, version int, confi
 	Info.Println("Created SOC WAF logging endpoint: " + config.Waflog.Name)
 	return true
 }
+
+// FindCustomerID retrives a customerID using the Fastly API
 func FindCustomerID(client fastly.Client, serviceID string) string {
 
 	//have client return the service Info
@@ -497,7 +522,7 @@ func checkWAF(apiKey, apiEndpoint string) bool {
 	return false
 }
 
-func wafContainer(client fastly.Client, serviceID string, version int, config tomlConfig) (bool, string) {
+func wafContainer(client fastly.Client, serviceID string, version int, config TOMLConfig) (bool, string) {
 	waf, err := client.CreateWAF(&fastly.CreateWAFInput{
 		Service:           serviceID,
 		Version:           version,
@@ -514,23 +539,25 @@ func wafContainer(client fastly.Client, serviceID string, version int, config to
 
 }
 
-func createOWASP(client fastly.Client, serviceID, wafID string, version int, config tomlConfig) bool {
+func createOWASP(client fastly.Client, serviceID, wafID string, version int, config TOMLConfig) bool {
 	//add tagging logic
 
-	owasp, err := client.GetOWASP(&fastly.GetOWASPInput{
+	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
 		Service: serviceID,
 		ID:      wafID,
 	})
 
 	if owasp.ID == "" {
-		owasp, err = client.CreateOWASP(&fastly.CreateOWASPInput{
+		owasp, err := client.CreateOWASP(&fastly.CreateOWASPInput{
 			Service: serviceID,
 			ID:      wafID,
 		})
+
 		if err != nil {
 			Error.Print(err)
 			return false
 		}
+
 		owasp, err = client.UpdateOWASP(&fastly.UpdateOWASPInput{
 			Service:                       serviceID,
 			ID:                            wafID,
@@ -558,7 +585,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 			RFIScoreThreshold:             config.Owasp.RFIScoreThreshold,
 			SessionFixationScoreThreshold: config.Owasp.SessionFixationScoreThreshold,
 			SQLInjectionScoreThreshold:    config.Owasp.SQLInjectionScoreThreshold,
-			XSSScoreThreshold:             config.Owasp.XssScoreThreshold,
+			XSSScoreThreshold:             config.Owasp.XSSScoreThreshold,
 			TotalArgLength:                config.Owasp.TotalArgLength,
 			WarningAnomalyScore:           config.Owasp.WarningAnomalyScore,
 		})
@@ -595,7 +622,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 
 	} else {
 
-		owasp, err = client.UpdateOWASP(&fastly.UpdateOWASPInput{
+		owasp, err := client.UpdateOWASP(&fastly.UpdateOWASPInput{
 			Service:                       serviceID,
 			ID:                            wafID,
 			OWASPID:                       owasp.ID,
@@ -622,7 +649,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 			RFIScoreThreshold:             config.Owasp.RFIScoreThreshold,
 			SessionFixationScoreThreshold: config.Owasp.SessionFixationScoreThreshold,
 			SQLInjectionScoreThreshold:    config.Owasp.SQLInjectionScoreThreshold,
-			XSSScoreThreshold:             config.Owasp.XssScoreThreshold,
+			XSSScoreThreshold:             config.Owasp.XSSScoreThreshold,
 			TotalArgLength:                config.Owasp.TotalArgLength,
 			WarningAnomalyScore:           config.Owasp.WarningAnomalyScore,
 		})
@@ -661,7 +688,8 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 	return true
 }
 
-func DeleteLogsCall(client fastly.Client, serviceID, apiKey string, config tomlConfig, version int) bool {
+// DeleteLogsCall removes logging endpoints
+func DeleteLogsCall(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) bool {
 
 	err := client.DeleteSyslog(&fastly.DeleteSyslogInput{
 		Service: serviceID,
@@ -717,7 +745,9 @@ func DeleteLogsCall(client fastly.Client, serviceID, apiKey string, config tomlC
 	return true
 
 }
-func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config tomlConfig, version int) bool {
+
+// DeprovisionWAF removes a WAF from a service
+func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) bool {
 	/*
 		To Remove
 		1. Delete response
@@ -739,74 +769,75 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config tomlC
 	if len(wafs) == 0 {
 		Error.Printf("No WAF object exists in current service %s version #%v .. exiting", serviceID, version)
 		return false
-	} else {
-		for index, waf := range wafs {
-
-			//remove WAF SOC Logging
-			result := DeleteLogsCall(client, serviceID, apiKey, config, version)
-			Info.Printf("Deleting WAF #%v SOC Logging", index+1)
-			if !result {
-				Error.Print(err)
-				return false
-			}
-
-			Info.Printf("Deleting WAF #%v Container", index+1)
-			//remove WAF container
-			err = client.DeleteWAF(&fastly.DeleteWAFInput{
-				Service: serviceID,
-				Version: version,
-				ID:      waf.ID,
-			})
-			if err != nil {
-				Error.Print(err)
-				return false
-			}
-
-			//remove WAF Response Object
-			Info.Printf("Deleting WAF #%v Response Condition", index+1)
-			client.DeleteResponseObject(&fastly.DeleteResponseObjectInput{
-				Service: serviceID,
-				Version: version,
-				Name:    "WAF_Response",
-			})
-			if err != nil {
-				Error.Print(err)
-				return false
-			}
-
-			//remove WAF Prefetch condition
-			Info.Printf("Deleting WAF #%v Prefetch Condition", index+1)
-			err = client.DeleteCondition(&fastly.DeleteConditionInput{
-				Service: serviceID,
-				Version: version,
-				Name:    "WAF_Prefetch",
-			})
-			if err != nil {
-				Error.Print(err)
-				return false
-			}
-
-			//remove VCL Snippet
-			Info.Printf("Deleting WAF #%v VCL Snippet", index+1)
-			apiCall := config.APIEndpoint + "/service/" + serviceID + "/version/" + strconv.Itoa(version) + "/snippet/" + config.Vclsnippet.Name
-			//get list of current snippets
-			_, err := resty.R().
-				SetHeader("Accept", "application/json").
-				SetHeader("Fastly-Key", apiKey).
-				Delete(apiCall)
-
-			//check if we had an issue with our call
-			if err != nil {
-				Error.Println("Error with API call: " + apiCall)
-				os.Exit(1)
-			}
-
-		}
-		return true
 	}
 
+	for index, waf := range wafs {
+
+		//remove WAF SOC Logging
+		result := DeleteLogsCall(client, serviceID, apiKey, config, version)
+		Info.Printf("Deleting WAF #%v SOC Logging", index+1)
+		if !result {
+			Error.Print(err)
+			return false
+		}
+
+		Info.Printf("Deleting WAF #%v Container", index+1)
+		//remove WAF container
+		err = client.DeleteWAF(&fastly.DeleteWAFInput{
+			Service: serviceID,
+			Version: version,
+			ID:      waf.ID,
+		})
+		if err != nil {
+			Error.Print(err)
+			return false
+		}
+
+		//remove WAF Response Object
+		Info.Printf("Deleting WAF #%v Response Condition", index+1)
+		client.DeleteResponseObject(&fastly.DeleteResponseObjectInput{
+			Service: serviceID,
+			Version: version,
+			Name:    "WAF_Response",
+		})
+		if err != nil {
+			Error.Print(err)
+			return false
+		}
+
+		//remove WAF Prefetch condition
+		Info.Printf("Deleting WAF #%v Prefetch Condition", index+1)
+		err = client.DeleteCondition(&fastly.DeleteConditionInput{
+			Service: serviceID,
+			Version: version,
+			Name:    "WAF_Prefetch",
+		})
+		if err != nil {
+			Error.Print(err)
+			return false
+		}
+
+		//remove VCL Snippet
+		Info.Printf("Deleting WAF #%v VCL Snippet", index+1)
+		apiCall := config.APIEndpoint + "/service/" + serviceID + "/version/" + strconv.Itoa(version) + "/snippet/" + config.Vclsnippet.Name
+		//get list of current snippets
+		_, err := resty.R().
+			SetHeader("Accept", "application/json").
+			SetHeader("Fastly-Key", apiKey).
+			Delete(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			os.Exit(1)
+		}
+
+	}
+
+	return true
 }
-func provisionWAF(client fastly.Client, serviceID, apiKey string, config tomlConfig, version int) string {
+
+func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) string {
 
 	//create new conditions
 	if prefetchCondition(client, serviceID, version, config) {
@@ -857,6 +888,7 @@ func provisionWAF(client fastly.Client, serviceID, apiKey string, config tomlCon
 	return wafID
 }
 
+// FindServiceID retrives a SID using the Fastly API
 func FindServiceID(domain, apiKey, apiEndpoint string) string {
 	//Finds the service ID of the provided domain to power other calls
 
@@ -880,14 +912,14 @@ func FindServiceID(domain, apiKey, apiEndpoint string) string {
 	body := Service{}
 	json.Unmarshal([]byte(resp.String()), &body)
 
-	if body.Service_id == "" {
+	if body.ServiceID == "" {
 		Error.Println("Could not find the service ID for domain: " + domain + " please make sure it exists")
 		os.Exit(1)
 	}
 
-	Info.Println("Found service id: " + body.Service_id + " for domain: " + domain)
+	Info.Println("Found service id: " + body.ServiceID + " for domain: " + domain)
 
-	return body.Service_id
+	return body.ServiceID
 }
 
 func validateVersion(client fastly.Client, serviceID string, version int) bool {
@@ -902,11 +934,10 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 	if !valid {
 		Error.Println("Version invalid")
 		return false
-	} else {
-		Info.Printf("Config Version %v Valid, remember to activate it!", version)
-		return true
-
 	}
+	Info.Printf("Config Version %v Valid, remember to activate it!", version)
+	return true
+
 }
 
 /*
@@ -919,7 +950,7 @@ func sslConfig() {
 }
 */
 
-func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config tomlConfig) {
+func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
 	//Work on Tags first
 	//API Endpoint to call for domain searches
 	apiCall := apiEndpoint + "/wafs/tags"
@@ -1006,7 +1037,7 @@ func changeStatus(apiEndpoint, apiKey, wafID, status string) {
 
 }
 
-func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config tomlConfig) {
+func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
 	//cleanup action
 	action := strings.TrimSpace(config.Action)
 	action = strings.ToLower(action)
@@ -1042,7 +1073,8 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cli
 	}
 }
 
-func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config tomlConfig) {
+// DefaultRuleDisabled disables rule IDs defined in the configuration file
+func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
 
 	//implement individual rule management here
 	for _, rule := range config.DisabledRules {
@@ -1075,7 +1107,8 @@ func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, client fa
 	}
 }
 
-func WithPXCondition(client fastly.Client, serviceID string, version int, config tomlConfig) bool {
+// WithPXCondition adds a condition if PX is present to avoid null host and request ID logging
+func WithPXCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
 
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
@@ -1141,6 +1174,7 @@ func WithPXCondition(client fastly.Client, serviceID string, version int, config
 
 }
 
+// PatchRules function patches a rule set after a status of a rule has been changed
 func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 
 	_, err := client.UpdateWAFRuleSets(&fastly.UpdateWAFRuleRuleSetsInput{
@@ -1214,10 +1248,13 @@ func main() {
         ` + `----------`
 
 	fmt.Println(logo)
-	fmt.Println("Fastly WAF Control Tool v1.20180509 #team-soc")
+
+	// grab version and build
+
+	fmt.Println("Fastly WAF Control Tool version: " + version + "built on " + date + " by #team-soc")
 
 	//run init to get our logging configured
-	var config tomlConfig
+	var config TOMLConfig
 	config = Init(os.Stdout, os.Stdout, os.Stderr, *configFile)
 
 	config.APIEndpoint = *apiEndpoint
