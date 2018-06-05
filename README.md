@@ -4,7 +4,9 @@
 
 [![Build Status](https://travis-ci.com/fastly/waflyctl.svg?token=83kKx7scGq3h69fnK6JA&branch=master)](https://travis-ci.com/fastly/waflyctl) 
 
-Thank you for using the "Fastly WAF Control Tool", this tool will allow you to:
+Thank you for using the "Fastly WAF Control Tool", you will find the latest version in the
+[release](https://github.com/fastly/waflyctl/releases) page.
+
 * rapidly and easily provision a waf object with:
   * pre-determine rules
   * OWASP configurations
