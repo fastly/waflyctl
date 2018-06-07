@@ -1248,7 +1248,7 @@ func main() {
 
 	// grab version and build
 
-	fmt.Println("Fastly WAF Control Tool version: " + version + "built on " + date + " by #team-soc")
+	fmt.Println("Fastly WAF Control Tool version: " + version + " built on " + date + " by #team-soc")
 
 	//run init to get our logging configured
 	var config TOMLConfig
