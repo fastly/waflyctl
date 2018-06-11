@@ -26,10 +26,10 @@ RestrictedHeaders = "/proxy/ /lock-token/ /content-range/ /translate/ /if/"
 
 # OWASP score settings
 InboundAnomalyScoreThreshold = 12
-CriticalAnomalyScore = 6
-ErrorAnomalyScore = 5
-WarningAnomalyScore = 4
-NoticeAnomalyScore = 3
+CriticalAnomalyScore = 5
+ErrorAnomalyScore = 4
+WarningAnomalyScore = 3
+NoticeAnomalyScore = 2
 PHPInjectionScoreThreshold = 6
 RCEScoreThreshold = 6
 HTTPViolationScoreThreshold = 6
