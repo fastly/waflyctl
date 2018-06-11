@@ -25,19 +25,19 @@ RestrictedExtensions = ".asa/ .asax/ .ascx/ .axd/ .backup/ .bak/ .bat/ .cdx/ .ce
 RestrictedHeaders = "/proxy/ /lock-token/ /content-range/ /translate/ /if/"
 
 # OWASP score settings
-InboundAnomalyScoreThreshold = 12
-CriticalAnomalyScore = 6
-ErrorAnomalyScore = 5
-WarningAnomalyScore = 4
-NoticeAnomalyScore = 3
-PHPInjectionScoreThreshold = 6
-RCEScoreThreshold = 6
-HTTPViolationScoreThreshold = 6
-LFIScoreThreshold = 6
-RFIScoreThreshold = 6
-SessionFixationScoreThreshold = 6
-SQLInjectionScoreThreshold = 6
-XSSScoreThreshold = 6
+InboundAnomalyScoreThreshold = 10
+CriticalAnomalyScore = 5
+ErrorAnomalyScore = 4
+WarningAnomalyScore = 3
+NoticeAnomalyScore = 2
+PHPInjectionScoreThreshold = 5
+RCEScoreThreshold = 5
+HTTPViolationScoreThreshold = 5
+LFIScoreThreshold = 5
+RFIScoreThreshold = 5
+SessionFixationScoreThreshold = 5
+SQLInjectionScoreThreshold = 5
+XSSScoreThreshold = 5
 
 [weblog]
 name = "soc-weblogs"
