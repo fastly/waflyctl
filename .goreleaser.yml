@@ -16,3 +16,13 @@ archive:
     - waflyctl.toml
     - config_examples/waflyctl.fastly_soc_example.toml 
     - README.md
+# HomeBrew Tap generation
+brew:
+  github:
+    owner: fastly
+    name: waflyctl-homebrew-tap
+  folder: Formula
+  homepage:  https://github.com/fastly/waflyctl
+  description: Allows you to provision a Fastly waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status.
+  test: |
+    system "#{bin}/waflyctl"
