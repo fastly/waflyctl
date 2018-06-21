@@ -2,9 +2,9 @@
 - Have a Fastly API Key in-hand with edit privileges
 - Have a service behind Fastly
 - Have WAF be enabled for your account
-- optionally if you are not running Darwin/x86 (OSX) then see [Build](#build)
+- Have a GITHUB token with repo scopo
 
 # Installation
-- `git clone https://github.com/fastly/waflyctl.git .`
-- `cd waflyctl && chmod +x waflyctl`
-- `./waflyctl`
+- `export HOMEBREW_GITHUB_API_TOKEN=<your new git token>`, may want to put this on your bash
+profile
+- `brew install fastly/tap/waflyctl` 
