@@ -20,7 +20,7 @@ archive:
 brew:
   github:
     owner: fastly
-    name: waflyctl-homebrew-tap
+    name: homebrew-tap
   folder: Formula
   homepage:  https://github.com/fastly/waflyctl
   description: Allows you to provision a Fastly waf object with pre-determine rules, OWASP config, response, and logging endpoints. Also manage rules, and their status.
