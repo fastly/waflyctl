@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"os/user"
 )
 
 var (
@@ -39,7 +40,13 @@ var (
 	// version number
 	version = "dev"
 	date    = "unknown"
+
+	//Home Directory
+	HOMEDIRECTORY string
+
 )
+
+
 
 // TOMLConfig is the applications config file
 type TOMLConfig struct {
@@ -1189,13 +1196,22 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 
 func main() {
 
+	// grab a users home directory
+	user, err := user.Current()
+	if err != nil {
+		fmt.Println("error reading current user name : %s", err)
+		os.Exit(1)
+	}
+
+	HOMEDIRECTORY := user.HomeDir
+
 	domain := flag.String("domain", "", "[Required] Domain to Provision, you can use Service ID alternatively")
 	serviceID := flag.String("serviceid", "", "[Required] Service ID to Provision")
 	apiKey := flag.String("apikey", "", "[Required] API Key to use")
 	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoint to use.")
 	//emergency := flag.Bool("emergency", false, "is this an emergency provisioning..see [wiki link]")
 	//ssl := flag.Bool("ssl", false, "turn on ssl for this domain..see [wiki link]")
-	configFile := flag.String("config", "~/.waflyctl.toml", "Location of configuration file for waflyctl.")
+	configFile := flag.String("config", HOMEDIRECTORY + "/.waflyctl.toml", "Location of configuration file for waflyctl.")
 
 	//var blocklist string
 	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
