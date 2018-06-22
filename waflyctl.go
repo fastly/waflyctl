@@ -41,7 +41,7 @@ var (
 	version = "dev"
 	date    = "unknown"
 
-	//Home Directory
+	//HOMEDIRECTORY static variable
 	HOMEDIRECTORY string
 
 )
@@ -1199,7 +1199,7 @@ func main() {
 	// grab a users home directory
 	user, err := user.Current()
 	if err != nil {
-		fmt.Println("error reading current user name : %s", err)
+		fmt.Println("error reading current user name : ", err)
 		os.Exit(1)
 	}
 
