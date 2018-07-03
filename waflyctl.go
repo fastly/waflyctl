@@ -280,7 +280,7 @@ func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOM
 	}
 
 	// return false if no active version is found
-	Error.Println("Found no active version on the service..exiting")
+	Error.Println("Found no active version on the service, service ID might be incorrect..exiting")
 	os.Exit(1)
 	return 0
 }
