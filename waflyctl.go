@@ -169,9 +169,17 @@ type Features struct {
 	Features []string `json:"features"`
 }
 
+type RuleList struct {
+	Data []Rule
+	Links struct {
+		Last  string `json:"last"`
+		First string `json:"first"`
+		Next  string `json:"next"`
+	} `json:"links"`
+}
+
 // Rule from Fastly API
 type Rule struct {
-	Included []struct {
 		ID         string `json:"id"`
 		Type       string `json:"type"`
 		Attributes struct {
@@ -185,7 +193,6 @@ type Rule struct {
 			Source        interface{} `json:"source"`
 			Vcl           interface{} `json:"vcl"`
 		} `json:"attributes"`
-	} `json:"included"`
 }
 
 // Snippet from Fastly API
@@ -201,11 +208,7 @@ type Snippet []struct {
 }
 
 //Init function starts our logger
-func Init(
-	// configure logging
-	infoHandle io.Writer,
-	warningHandle io.Writer,
-	errorHandle io.Writer, configFile string) TOMLConfig {
+func Init(configFile string) TOMLConfig {
 
 	//load configs
 	var config TOMLConfig
@@ -973,10 +976,10 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Clie
 		}
 
 		//unmarshal the response and extract the service id
-		body := Rule{}
+		body := RuleList{}
 		json.Unmarshal([]byte(resp.String()), &body)
 
-		if len(body.Included) == 0 {
+		if len(body.Data) == 0 {
 			Error.Println("Could not find any rules with tag: " + tag + " please make sure it exists..moving to the next tag")
 			continue
 		}
@@ -1000,7 +1003,7 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Clie
 
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf(action+" %d rule on the WAF for tag: "+tag, len(body.Included))
+			Info.Printf(action+" %d rule on the WAF for tag: "+tag, len(body.Data))
 		} else {
 			Error.Println("Could not set status: "+action+" on rule tag: "+tag+" the response was: ", resp.String())
 		}
@@ -1187,6 +1190,88 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 	return true
 }
 
+// ListRules function lists all the rules with in the Fastly API
+func getRules(apiEndpoint, apiKey string) bool {
+
+		//set rule action on our tags
+		apiCall := apiEndpoint + "/wafs/rules"
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
+			return false
+		}
+
+		//unmarshal the response and extract the service id
+		body := RuleList{}
+		json.Unmarshal([]byte(resp.String()), &body)
+
+	if len(body.Data) == 0 {
+		Error.Println("No Fastly Rules found")
+		return false
+	}
+
+	Info.Printf("| Rule ID | = | Rule Message |")
+
+	var owasp []Rule
+	var fastly []Rule
+	var trustwave []Rule
+
+	for _, r := range body.Data{
+		if r.Attributes.Origin == "owasp" {
+			owasp = append(owasp, r)
+		} else if r.Attributes.Origin == "trustwave" {
+			trustwave = append(trustwave, r)
+		} else if r.Attributes.Origin == "fastly" {
+			fastly = append(fastly, r)
+		}
+	}
+
+	Info.Println("# OWASP Rules")
+	for _, r := range owasp{
+		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
+	}
+
+	Info.Println("# Fastly Rules")
+	for _, r := range fastly{
+		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
+	}
+
+	Info.Println("# Trustwave Rules")
+	for _, r := range trustwave{
+		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
+	}
+
+/*
+	rules, err := client.GetRules()
+
+	if err != nil {
+		Error.Printf("Listing Fastly Rules")
+		return false
+	}
+
+	fmt.Println("Rule ID - Severity - Message")
+
+
+	for _, r := range rules {
+
+		if r.RuleID
+		r.
+
+		fmt.Printf("%s - %d - %s\n", r.RuleID, r.Severity, r.Message )
+	}
+*/
+	return true
+
+}
+
 func main() {
 
 	domain := flag.String("domain", "", "[Required] Domain to Provision, you can use Service ID alternatively")
@@ -1199,6 +1284,8 @@ func main() {
 
 	//var blocklist string
 	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
+	ListRules := flag.Bool("listrules", false, "List all rules on the Fastly platform")
+	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
 
 	var Rules string
 	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..")
@@ -1207,7 +1294,6 @@ func main() {
 	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php")
 
 	Action := flag.String("action", "", "Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.")
-
 	EditOWASP := flag.Bool("owasp", false, "When set edits the OWASP object base on the settings in the configuration file.")
 	Deprovision := flag.Bool("delete", false, "When set removes a WAF configuration created with waflyctl.")
 	LogOnly := flag.Bool("enable-logs-only", false, "Add logging configuration only to the service, the tool will not make any other changes, can be paired with-perimeterx")
@@ -1252,7 +1338,7 @@ func main() {
 
 	//run init to get our logging configured
 	var config TOMLConfig
-	config = Init(os.Stdout, os.Stdout, os.Stderr, *configFile)
+	config = Init(*configFile)
 
 	config.APIEndpoint = *apiEndpoint
 
@@ -1352,6 +1438,17 @@ func main() {
 	//get currently activeVersion to be used
 	activeVersion := getActiveVersion(*client, *serviceID, *apiKey, config)
 
+	if *ListRules {
+		Info.Printf("Listing all rules under the Fastly API: %s", config.APIEndpoint)
+
+		if getRules(config.APIEndpoint, *apiKey) {
+			Info.Println("Completed")
+			os.Exit(1)
+		} else {
+			Error.Printf("Listing Fastly rules from endpoint: %s", config.APIEndpoint)
+			os.Exit(1)
+		}
+	}
 	// add logs only to a service
 	if *LogOnly {
 
