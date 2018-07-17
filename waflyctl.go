@@ -170,29 +170,36 @@ type Features struct {
 }
 
 type RuleList struct {
-	Data []Rule
+	Data  []Rule
 	Links struct {
 		Last  string `json:"last"`
 		First string `json:"first"`
 		Next  string `json:"next"`
 	} `json:"links"`
+
+	Meta struct {
+		CurrentPage int `json:"current_page"`
+		PerPage     int `json:"per_page"`
+		RecordCount int `json:"record_count"`
+		TotalPages  int `json:"total_pages"`
+	} `json:"meta"`
 }
 
 // Rule from Fastly API
 type Rule struct {
-		ID         string `json:"id"`
-		Type       string `json:"type"`
-		Attributes struct {
-			Message       string      `json:"message"`
-			Origin        string      `json:"origin"`
-			ParanoiaLevel int         `json:"paranoia_level"`
-			Revision      string      `json:"revision"`
-			Severity      int         `json:"severity"`
-			Version       interface{} `json:"version"`
-			RuleID        string      `json:"rule_id"`
-			Source        interface{} `json:"source"`
-			Vcl           interface{} `json:"vcl"`
-		} `json:"attributes"`
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	Attributes struct {
+		Message       string      `json:"message"`
+		Origin        string      `json:"origin"`
+		ParanoiaLevel int         `json:"paranoia_level"`
+		Revision      string      `json:"revision"`
+		Severity      int         `json:"severity"`
+		Version       interface{} `json:"version"`
+		RuleID        string      `json:"rule_id"`
+		Source        interface{} `json:"source"`
+		Vcl           interface{} `json:"vcl"`
+	} `json:"attributes"`
 }
 
 // Snippet from Fastly API
@@ -1193,8 +1200,51 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 // ListRules function lists all the rules with in the Fastly API
 func getRules(apiEndpoint, apiKey string) bool {
 
-		//set rule action on our tags
-		apiCall := apiEndpoint + "/wafs/rules"
+	//set our API call
+	apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=1"
+
+	resp, err := resty.R().
+		SetHeader("Accept", "application/vnd.api+json").
+		SetHeader("Fastly-Key", apiKey).
+		SetHeader("Content-Type", "application/vnd.api+json").
+		Get(apiCall)
+
+	//check if we had an issue with our call
+	if err != nil {
+		Error.Println("Error with API call: " + apiCall)
+		Error.Println(resp.String())
+		return false
+	}
+
+	//unmarshal the response and extract the service id
+	body := RuleList{}
+	json.Unmarshal([]byte(resp.String()), &body)
+
+	if len(body.Data) == 0 {
+		Error.Println("No Fastly Rules found")
+		return false
+	}
+
+	//build
+	type Pages struct {
+		page []RuleList
+	}
+
+	result := Pages{[]RuleList{}}
+	result.page = append(result.page, body)
+
+	currentpage := body.Meta.CurrentPage
+	totalpages := body.Meta.TotalPages
+
+	Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+
+
+	// iterate through pages collecting all rules
+	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
+
+		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+		//set our API call
+		apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1212,62 +1262,61 @@ func getRules(apiEndpoint, apiKey string) bool {
 		//unmarshal the response and extract the service id
 		body := RuleList{}
 		json.Unmarshal([]byte(resp.String()), &body)
-
-	if len(body.Data) == 0 {
-		Error.Println("No Fastly Rules found")
-		return false
+		result.page = append(result.page, body)
 	}
 
-	Info.Printf("| Rule ID | = | Rule Message |")
 
 	var owasp []Rule
 	var fastly []Rule
 	var trustwave []Rule
 
-	for _, r := range body.Data{
-		if r.Attributes.Origin == "owasp" {
-			owasp = append(owasp, r)
-		} else if r.Attributes.Origin == "trustwave" {
-			trustwave = append(trustwave, r)
-		} else if r.Attributes.Origin == "fastly" {
-			fastly = append(fastly, r)
+	for _, p := range result.page {
+		for _, r := range p.Data {
+			if r.Attributes.Origin == "owasp" {
+				owasp = append(owasp, r)
+			} else if r.Attributes.Origin == "trustwave" {
+				trustwave = append(trustwave, r)
+			} else if r.Attributes.Origin == "fastly" {
+				fastly = append(fastly, r)
+			}
 		}
 	}
 
+	Info.Println("| Rule ID | = | Rule Message |")
 	Info.Println("# OWASP Rules")
-	for _, r := range owasp{
+	for _, r := range owasp {
 		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
 	}
 
 	Info.Println("# Fastly Rules")
-	for _, r := range fastly{
+	for _, r := range fastly {
 		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
 	}
 
 	Info.Println("# Trustwave Rules")
-	for _, r := range trustwave{
+	for _, r := range trustwave {
 		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
 	}
 
-/*
-	rules, err := client.GetRules()
+	/*
+		rules, err := client.GetRules()
 
-	if err != nil {
-		Error.Printf("Listing Fastly Rules")
-		return false
-	}
+		if err != nil {
+			Error.Printf("Listing Fastly Rules")
+			return false
+		}
 
-	fmt.Println("Rule ID - Severity - Message")
+		fmt.Println("Rule ID - Severity - Message")
 
 
-	for _, r := range rules {
+		for _, r := range rules {
 
-		if r.RuleID
-		r.
+			if r.RuleID
+			r.
 
-		fmt.Printf("%s - %d - %s\n", r.RuleID, r.Severity, r.Message )
-	}
-*/
+			fmt.Printf("%s - %d - %s\n", r.RuleID, r.Severity, r.Message )
+		}
+	*/
 	return true
 
 }
