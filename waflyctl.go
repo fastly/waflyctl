@@ -1282,20 +1282,19 @@ func getRules(apiEndpoint, apiKey string) bool {
 		}
 	}
 
-	Info.Println("| Rule ID | = | Rule Message |")
-	Info.Println("# OWASP Rules")
+	Info.Println("- OWASP Rules")
 	for _, r := range owasp {
-		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
+		Info.Printf("- Rule ID %s - Paranoia Level: %s - Version: %s - Message: %s\n", r.ID,r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
 	}
 
-	Info.Println("# Fastly Rules")
+	Info.Println("- Fastly Rules")
 	for _, r := range fastly {
-		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
+		Info.Printf("- Rule ID %s - Paranoia Level: %s - Version: %s - Message: %s\n", r.ID,r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
 	}
 
-	Info.Println("# Trustwave Rules")
+	Info.Println("- Trustwave Rules")
 	for _, r := range trustwave {
-		Info.Printf("- %s = %s\n", r.ID, r.Attributes.Message)
+		Info.Printf("- Rule ID %s - Paranoia Level: %s - Version: %s - Message: %s\n", r.ID,r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
 	}
 
 	/*
