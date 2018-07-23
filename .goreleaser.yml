@@ -14,7 +14,7 @@ archive:
   format: tar.gz
   files:
     - waflyctl.toml
-    - config_examples/waflyctl.fastly_soc_example.toml 
+    - config_examples/waflyctl.toml.example
     - README.md
 # HomeBrew Tap generation
 brew:
