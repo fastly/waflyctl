@@ -235,7 +235,7 @@ func Init(
 		fmt.Println("- waflogs", config.Waflog.Port)
 	*/
 	//now lets create a logging object
-	file, err := os.OpenFile(config.Logpath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := os.OpenFile(config.Logpath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		log.Fatalln("Failed to open log file", logFile, ":", err)
 	}
