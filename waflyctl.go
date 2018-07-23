@@ -191,12 +191,15 @@ type Rule struct {
 	Type       string `json:"type"`
 	Attributes struct {
 		Message       string      `json:"message"`
+		Status        string      `json:"status"`
 		Origin        string      `json:"origin"`
 		ParanoiaLevel int         `json:"paranoia_level"`
 		Revision      string      `json:"revision"`
 		Severity      int         `json:"severity"`
 		Version       interface{} `json:"version"`
 		RuleID        string      `json:"rule_id"`
+		ModsecRuleID  string      `json:"modsec_rule_id"`
+		UniqueRuleID  string      `json:unique_rule_id`
 		Source        interface{} `json:"source"`
 		Vcl           interface{} `json:"vcl"`
 	} `json:"attributes"`
@@ -212,6 +215,38 @@ type Snippet []struct {
 	Dynamic   string      `json:"dynamic"`
 	Type      string      `json:"type"`
 	Content   interface{} `json:"content"`
+}
+
+type PagesOfRules struct {
+	page []RuleList
+}
+
+type PagesOfConfigurationSets struct {
+	page []ConfigSetList
+}
+
+type ConfigSetList struct {
+	Data  []ConfigSet
+	Links struct {
+		Last  string `json:"last"`
+		First string `json:"first"`
+		Next  string `json:"next"`
+	} `json:"links"`
+	Meta struct {
+		CurrentPage int `json:"current_page"`
+		PerPage     int `json:"per_page"`
+		RecordCount int `json:"record_count"`
+		TotalPages  int `json:"total_pages"`
+	} `json:"meta"`
+}
+
+type ConfigSet struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	Attributes struct {
+		Active bool      `json:"active"`
+		Name   string `json:"name"`
+	} `json:"attributes"`
 }
 
 //Init function starts our logger
@@ -942,7 +977,7 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 		Error.Println("Version invalid")
 		return false
 	}
-	Info.Printf("Config Version %v Valid, remember to activate it!", version)
+	Info.Printf("Config Version %v Validated successfully", version)
 	return true
 
 }
@@ -1197,11 +1232,123 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 	return true
 }
 
-// ListRules function lists all the rules with in the Fastly API
-func getRules(apiEndpoint, apiKey string) bool {
 
+// getConfigurationSets function provides a listing of all config sets
+func getConfigurationSets(apiEndpoint, apiKey string) bool {
 	//set our API call
-	apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=1"
+	apiCall := apiEndpoint + "/wafs/configuration_sets"
+
+	resp, err := resty.R().
+		SetHeader("Accept", "application/vnd.api+json").
+		SetHeader("Fastly-Key", apiKey).
+		SetHeader("Content-Type", "application/vnd.api+json").
+		Get(apiCall)
+
+	//check if we had an issue with our call
+	if err != nil {
+		Error.Println("Error with API call: " + apiCall)
+		Error.Println(resp.String())
+		return false
+	}
+
+	//unmarshal the response and extract the service id
+	body := ConfigSetList{}
+	json.Unmarshal([]byte(resp.String()), &body)
+
+	if len(body.Data) == 0 {
+		Error.Println("No Configuration Sets found")
+		return false
+	}
+
+
+	json.Unmarshal([]byte(resp.String()), &body)
+
+	if len(body.Data) == 0 {
+		Error.Println("No Fastly Rules found")
+		return false
+	}
+
+	result := PagesOfConfigurationSets{[]ConfigSetList{}}
+	result.page = append(result.page, body)
+
+	currentpage := body.Meta.CurrentPage
+	totalpages := body.Meta.TotalPages
+
+	Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+
+	// iterate through pages collecting all rules
+	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
+
+		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+		//set our API call
+		apiCall := apiEndpoint + "/wafs/configuration_sets?page[number]=" + strconv.Itoa(currentpage)
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
+			return false
+		}
+
+		//unmarshal the response and extract the service id
+		body := ConfigSetList{}
+		json.Unmarshal([]byte(resp.String()), &body)
+		result.page = append(result.page, body)
+	}
+
+	for _, p := range result.page {
+		for _, c := range p.Data {
+			Info.Printf("- Configuration Set %s -  %s - Active: %t \n", c.ID, c.Attributes.Name, c.Attributes.Active)
+		}
+	}
+
+	return true
+
+}
+
+// getRuleInfo function
+func getRuleInfo(apiEndpoint, apiKey, ruleID string) Rule {
+		rule := Rule{}
+		//set our API call
+		apiCall := apiEndpoint + "/wafs/rules?page[size]=10&page[number]=1&filter[rule_id]=" + ruleID
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
+		}
+
+		//unmarshal the response and extract the service id
+		body := RuleList{}
+		json.Unmarshal([]byte(resp.String()), &body)
+
+		if len(body.Data) == 0 {
+			Error.Println("No Fastly Rules found")
+		}
+
+		for _, r := range body.Data{
+			rule = r
+		}
+
+		return rule
+}
+
+// getRules functions lists all rules for a WAFID and their status
+func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
+	//set our API call
+	apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses"
 
 	resp, err := resty.R().
 		SetHeader("Accept", "application/vnd.api+json").
@@ -1225,12 +1372,7 @@ func getRules(apiEndpoint, apiKey string) bool {
 		return false
 	}
 
-	//build
-	type Pages struct {
-		page []RuleList
-	}
-
-	result := Pages{[]RuleList{}}
+	result := PagesOfRules{[]RuleList{}}
 	result.page = append(result.page, body)
 
 	currentpage := body.Meta.CurrentPage
@@ -1238,13 +1380,12 @@ func getRules(apiEndpoint, apiKey string) bool {
 
 	Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
 
-
 	// iterate through pages collecting all rules
 	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
 		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1265,57 +1406,235 @@ func getRules(apiEndpoint, apiKey string) bool {
 		result.page = append(result.page, body)
 	}
 
-
-	var owasp []Rule
-	var fastly []Rule
-	var trustwave []Rule
+	var log []Rule
+	var disabled []Rule
+	var block []Rule
 
 	for _, p := range result.page {
-		for _, r := range p.Data {
-			if r.Attributes.Origin == "owasp" {
-				owasp = append(owasp, r)
-			} else if r.Attributes.Origin == "trustwave" {
-				trustwave = append(trustwave, r)
-			} else if r.Attributes.Origin == "fastly" {
-				fastly = append(fastly, r)
+			for _, r := range p.Data {
+			if r.Attributes.Status == "log" {
+				log = append(log, r)
+			} else if r.Attributes.Status == "block" {
+				block = append(block, r)
+			} else if r.Attributes.Status == "disabled" {
+				disabled = append(disabled, r)
 			}
 		}
 	}
 
-	Info.Println("- OWASP Rules")
-	for _, r := range owasp {
-		Info.Printf("- Rule ID %s - Paranoia Level: %s - Version: %s - Message: %s\n", r.ID,r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+	Info.Println("- Blocking Rules")
+	for _, r := range block {
+		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
+				info.Attributes.Origin, info.Attributes.Message)
 	}
 
-	Info.Println("- Fastly Rules")
-	for _, r := range fastly {
-		Info.Printf("- Rule ID %s - Paranoia Level: %s - Version: %s - Message: %s\n", r.ID,r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+	Info.Println("- Logging Rules")
+	for _, r := range log {
+		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
+			info.Attributes.Origin, info.Attributes.Message)
 	}
 
-	Info.Println("- Trustwave Rules")
-	for _, r := range trustwave {
-		Info.Printf("- Rule ID %s - Paranoia Level: %s - Version: %s - Message: %s\n", r.ID,r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+	Info.Println("- Disabled Rules")
+	for _, r := range disabled {
+		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
+			info.Attributes.Origin, info.Attributes.Message)
 	}
+	return true
+}
 
-	/*
-		rules, err := client.GetRules()
+// getAllRules function lists all the rules with in the Fastly API
+func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
+	if ConfigID == "" {
+		//set our API call
+		apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=1"
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
 		if err != nil {
-			Error.Printf("Listing Fastly Rules")
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
 			return false
 		}
 
-		fmt.Println("Rule ID - Severity - Message")
+		//unmarshal the response and extract the service id
+		body := RuleList{}
+		json.Unmarshal([]byte(resp.String()), &body)
 
-
-		for _, r := range rules {
-
-			if r.RuleID
-			r.
-
-			fmt.Printf("%s - %d - %s\n", r.RuleID, r.Severity, r.Message )
+		if len(body.Data) == 0 {
+			Error.Println("No Fastly Rules found")
+			return false
 		}
-	*/
+
+		result := PagesOfRules{[]RuleList{}}
+		result.page = append(result.page, body)
+
+		currentpage := body.Meta.CurrentPage
+		totalpages := body.Meta.TotalPages
+
+		Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+
+		// iterate through pages collecting all rules
+		for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
+
+			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+			//set our API call
+			apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+
+			resp, err := resty.R().
+				SetHeader("Accept", "application/vnd.api+json").
+				SetHeader("Fastly-Key", apiKey).
+				SetHeader("Content-Type", "application/vnd.api+json").
+				Get(apiCall)
+
+			//check if we had an issue with our call
+			if err != nil {
+				Error.Println("Error with API call: " + apiCall)
+				Error.Println(resp.String())
+				return false
+			}
+
+			//unmarshal the response and extract the service id
+			body := RuleList{}
+			json.Unmarshal([]byte(resp.String()), &body)
+			result.page = append(result.page, body)
+		}
+
+		var owasp []Rule
+		var fastly []Rule
+		var trustwave []Rule
+
+		for _, p := range result.page {
+			for _, r := range p.Data {
+				if r.Attributes.Origin == "owasp" {
+					owasp = append(owasp, r)
+				} else if r.Attributes.Origin == "trustwave" {
+					trustwave = append(trustwave, r)
+				} else if r.Attributes.Origin == "fastly" {
+					fastly = append(fastly, r)
+				}
+			}
+		}
+
+		Info.Println("- OWASP Rules")
+		for _, r := range owasp {
+			Info.Printf("- Rule ID: %s\tParanoia: %d\tVersion: %s\tMessage: %s\n", r.ID, r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+		}
+
+		Info.Println("- Fastly Rules")
+		for _, r := range fastly {
+			Info.Printf("- Rule ID: %s\tParanoia: %d\tVersion: %s\tMessage: %s\n", r.ID, r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+		}
+
+		Info.Println("- Trustwave Rules")
+		for _, r := range trustwave {
+			Info.Printf("- Rule ID: %s\tParanoia: %d\tVersion: %s\tMessage: %s\n", r.ID, r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+		}
+	} else {
+
+		//set our API call
+		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[size]=200&page[number]=1"
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
+			return false
+		}
+
+		//unmarshal the response and extract the service id
+		body := RuleList{}
+		json.Unmarshal([]byte(resp.String()), &body)
+
+		if len(body.Data) == 0 {
+			Error.Println("No Fastly Rules found")
+			return false
+		}
+
+		result := PagesOfRules{[]RuleList{}}
+		result.page = append(result.page, body)
+
+		currentpage := body.Meta.CurrentPage
+		totalpages := body.Meta.TotalPages
+
+		Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+
+		// iterate through pages collecting all rules
+		for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
+
+			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+			//set our API call
+			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+
+			resp, err := resty.R().
+				SetHeader("Accept", "application/vnd.api+json").
+				SetHeader("Fastly-Key", apiKey).
+				SetHeader("Content-Type", "application/vnd.api+json").
+				Get(apiCall)
+
+			//check if we had an issue with our call
+			if err != nil {
+				Error.Println("Error with API call: " + apiCall)
+				Error.Println(resp.String())
+				return false
+			}
+
+			//unmarshal the response and extract the service id
+			body := RuleList{}
+			json.Unmarshal([]byte(resp.String()), &body)
+			result.page = append(result.page, body)
+		}
+
+		var owasp []Rule
+		var fastly []Rule
+		var trustwave []Rule
+
+		for _, p := range result.page {
+			for _, r := range p.Data {
+				if r.Attributes.Origin == "owasp" {
+					owasp = append(owasp, r)
+				} else if r.Attributes.Origin == "trustwave" {
+					trustwave = append(trustwave, r)
+				} else if r.Attributes.Origin == "fastly" {
+					fastly = append(fastly, r)
+				}
+			}
+		}
+
+		Info.Println("- OWASP Rules")
+		for _, r := range owasp {
+			Info.Printf("- Rule ID: %s\tParanoia: %d\tVersion: %s\tMessage: %s\n", r.ID, r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+		}
+
+		Info.Println("- Fastly Rules")
+		for _, r := range fastly {
+			Info.Printf("- Rule ID: %s\tParanoia: %d\tVersion: %s\tMessage: %s\n", r.ID, r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+		}
+
+		Info.Println("- Trustwave Rules")
+		for _, r := range trustwave {
+			Info.Printf("- Rule ID: %s\tParanoia: %d\tVersion: %s\tMessage: %s\n", r.ID, r.Attributes.ParanoiaLevel, r.Attributes.Version, r.Attributes.Message)
+		}
+
+	}
+
 	return true
 
 }
@@ -1332,7 +1651,9 @@ func main() {
 
 	//var blocklist string
 	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
-	ListRules := flag.Bool("listrules", false, "List all rules on the Fastly platform")
+	ListAllRules := flag.String("list-all-rules", "", "List all rules available on the Fastly platform for a given configuration set. Must pass a configuration set ID")
+	ListRules := flag.Bool("list-rules", false, "List current WAF rules and their status")
+	ListConfigSet := flag.Bool("list-configuration-sets", false, "List all configuration sets and their status")
 	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
 
 	var Rules string
@@ -1486,17 +1807,6 @@ func main() {
 	//get currently activeVersion to be used
 	activeVersion := getActiveVersion(*client, *serviceID, *apiKey, config)
 
-	if *ListRules {
-		Info.Printf("Listing all rules under the Fastly API: %s", config.APIEndpoint)
-
-		if getRules(config.APIEndpoint, *apiKey) {
-			Info.Println("Completed")
-			os.Exit(1)
-		} else {
-			Error.Printf("Listing Fastly rules from endpoint: %s", config.APIEndpoint)
-			os.Exit(1)
-		}
-	}
 	// add logs only to a service
 	if *LogOnly {
 
@@ -1569,7 +1879,7 @@ func main() {
 	//enable the WAF feature if is not already on
 	checkWAF(*apiKey, config.APIEndpoint)
 
-	Info.Printf("currently working with config version: %v. Note rule, OWASP and tag changes do not generate a new config version", activeVersion)
+	Info.Printf("currently working with config version: %v.\n*Note rule, OWASP and tags changes are versionless actions and thus do not generate a new config version*", activeVersion)
 	wafs, err := client.ListWAFs(&fastly.ListWAFsInput{
 		Service: *serviceID,
 		Version: activeVersion,
@@ -1580,12 +1890,34 @@ func main() {
 	}
 
 	if len(wafs) != 0 {
-		Warning.Println("WAF object already exists...skipping provisioning")
 		//do rule adjustment here
 		for index, waf := range wafs {
 
 			//if no individual tags or rules are set via CLI run both actions
 			switch {
+
+			//list configuration sets rules
+			case *ListConfigSet:
+				Info.Printf("Listing all configuration sets")
+				getConfigurationSets(config.APIEndpoint, *apiKey)
+				Info.Println("Completed")
+				os.Exit(1)
+
+			//list waf rules
+			case *ListRules:
+				Info.Printf("Listing all rules for WAF ID: %s", waf.ID)
+				getRules(config.APIEndpoint, *apiKey, *serviceID, waf.ID)
+				Info.Println("Completed")
+				os.Exit(1)
+
+			//list all rules for a given configset
+			case *ListAllRules != "":
+				Info.Printf("Listing all rules under configuration set ID: %s", *ListAllRules)
+				ConfigID := *ListAllRules
+				getAllRules(config.APIEndpoint, *apiKey, ConfigID)
+				Info.Println("Completed")
+				os.Exit(1)
+
 			case *Status != "":
 				Info.Println("Changing WAF Status")
 				//rule management
