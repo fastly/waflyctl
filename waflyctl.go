@@ -169,6 +169,7 @@ type Features struct {
 	Features []string `json:"features"`
 }
 
+// RuleList contains list of rules
 type RuleList struct {
 	Data  []Rule
 	Links struct {
@@ -199,7 +200,7 @@ type Rule struct {
 		Version       interface{} `json:"version"`
 		RuleID        string      `json:"rule_id"`
 		ModsecRuleID  string      `json:"modsec_rule_id"`
-		UniqueRuleID  string      `json:unique_rule_id`
+		UniqueRuleID  string      `json:"unique_rule_id"`
 		Source        interface{} `json:"source"`
 		Vcl           interface{} `json:"vcl"`
 	} `json:"attributes"`
@@ -217,14 +218,17 @@ type Snippet []struct {
 	Content   interface{} `json:"content"`
 }
 
+// PagesOfRules contains a list of rulelist
 type PagesOfRules struct {
 	page []RuleList
 }
 
+// PagesOfConfigurationSets contains a list of ConfigSetList
 type PagesOfConfigurationSets struct {
 	page []ConfigSetList
 }
 
+// ConfigSetList contains a list of configuration set and its metadata
 type ConfigSetList struct {
 	Data  []ConfigSet
 	Links struct {
@@ -240,6 +244,7 @@ type ConfigSetList struct {
 	} `json:"meta"`
 }
 
+// ConfigSet defines details of a configuration set
 type ConfigSet struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
