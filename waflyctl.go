@@ -484,8 +484,8 @@ func vclSnippet(serviceID, apiKey string, version int, config TOMLConfig) bool {
 
 }
 
-// FastlySOCLogging configures the logging endpoints for the customer
-func FastlySOCLogging(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
+// FastlyLogging configures the logging endpoints for the customer
+func FastlyLogging(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
 	//add logging logic to service
 	// create req logging endpoint
 	_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
@@ -506,7 +506,7 @@ func FastlySOCLogging(client fastly.Client, serviceID string, version int, confi
 		fmt.Print(err)
 		return false
 	}
-	Info.Println("Created SOC request logging endpoint: " + config.Weblog.Name)
+	Info.Println("Created request logging endpoint: " + config.Weblog.Name)
 
 	// create waf logging endpoint
 	_, err = client.CreateSyslog(&fastly.CreateSyslogInput{
@@ -528,7 +528,7 @@ func FastlySOCLogging(client fastly.Client, serviceID string, version int, confi
 		fmt.Print(err)
 		return false
 	}
-	Info.Println("Created SOC WAF logging endpoint: " + config.Waflog.Name)
+	Info.Println("Created WAF logging endpoint: " + config.Waflog.Name)
 	return true
 }
 
@@ -827,12 +827,11 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 
 	for index, waf := range wafs {
 
-		//remove WAF SOC Logging
+		//remove WAF Logging
 		result := DeleteLogsCall(client, serviceID, apiKey, config, version)
-		Info.Printf("Deleting WAF #%v SOC Logging", index+1)
+		Info.Printf("Deleting WAF #%v Logging", index+1)
 		if !result {
-			Error.Print(err)
-			return false
+			Error.Printf("Deleting WAF #%v Logging: %s", index+1, err)
 		}
 
 		Info.Printf("Deleting WAF #%v Container", index+1)
@@ -882,8 +881,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 
 		//check if we had an issue with our call
 		if err != nil {
-			Error.Println("Error with API call: " + apiCall)
-			os.Exit(1)
+			Error.Printf("Deleting WAF #%v VCL Snippet", index+1)
 		}
 
 	}
@@ -932,10 +930,10 @@ func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLCon
 	}
 
 	//set logging parameters
-	if FastlySOCLogging(client, serviceID, version, config) {
-		Info.Println("successfully created SOC logging settings")
+	if FastlyLogging(client, serviceID, version, config) {
+		Info.Println("successfully created logging settings")
 	} else {
-		Error.Printf("Fatal issue creating SOC logging settings..")
+		Error.Printf("Fatal issue creating logging settings..")
 		os.Exit(1)
 	}
 
@@ -1843,10 +1841,10 @@ func main() {
 		}
 
 		//set logging parameters
-		if FastlySOCLogging(*client, *serviceID, version, config) {
-			Info.Println("successfully created SOC logging settings")
+		if FastlyLogging(*client, *serviceID, version, config) {
+			Info.Println("successfully created logging settings")
 		} else {
-			Error.Printf("Fatal issue creating SOC logging settings..")
+			Error.Printf("Fatal issue creating logging settings..")
 			os.Exit(1)
 		}
 
