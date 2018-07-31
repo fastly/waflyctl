@@ -2,33 +2,39 @@
 waflyctl configuration file contains the default parameters to build and also managed a WAF. 
 If needed please adjust them in waflyctl.toml, and or pass them via command line.
 ```
-
-A domain or service ID is required!
-
+Usage of waflyctl:
   -action string
-        Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.
+    	Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.
   -apiendpoint string
-        Fastly API endpoin, defaults to https://api.fastly.com (default "https://api.fastly.com")
+    	Fastly API endpoint to use. (default "https://api.fastly.com")
   -apikey string
-        [Required] API Key to use
+    	[Required] API Key to use
   -config string
-        Location of configuration file for waflyctl, defaults to waflyctl.toml (default "waflyctl.toml")
+    	Location of configuration file for waflyctl. (default "/Users/jhernandez/.waflyctl.toml")
   -delete
-        When set removes a WAF configuration created with waflyctl.
+    	When set removes a WAF configuration created with waflyctl.
   -delete-logs
-        When set removes WAF logging configuration.
+    	When set removes WAF logging configuration.
   -domain string
-        [Required] Domain to Provision, you can use Service ID alternatively
+    	[Required] Domain to Provision, you can use Service ID alternatively
+  -enable-logs-only
+    	Add logging configuration only to the service, the tool will not make any other changes, can be paired with-perimeterx
+  -list-all-rules string
+    	List all rules available on the Fastly platform for a given configuration set. Must pass a configuration set ID
+  -list-configuration-sets
+    	List all configuration sets and their status
+  -list-rules
+    	List current WAF rules and their status
   -owasp
-        When set edits the OWASP object base on the settings in the configuration file.
+    	When set edits the OWASP object base on the settings in the configuration file.
   -rules string
-        Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..
+    	Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..
   -serviceid string
-        [Required] Service ID to Provision
+    	[Required] Service ID to Provision
   -status string
-        Disable or Enable the WAF. A disabled WAF will not block any traffic.
+    	Disable or Enable the WAF. A disabled WAF will not block any traffic, also disabling a WAF does not change rule statuses on its configure policy.
   -tags string
-        Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php
+    	Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php
   -with-perimeterx
-        Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.
+    	Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.
 ```

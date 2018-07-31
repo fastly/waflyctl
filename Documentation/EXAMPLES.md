@@ -15,4 +15,13 @@
 `./waflyctl -apikey $FASTLY_TOKEN -domain myexample.com -owasp`
 
 ## Disable a WAF, stop it for blocking traffic if something goes horribly wrong
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -status disable`
+
+## Listing all configuration sets available on the fastly platform
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -list-configuration-sets`
+
+## Listing all rules available under a configuration set
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -list-all-rules 552NEtnDyzucKd3vTjLgFC`
+
+## Listing all rules and their status for a service
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -list-rules`
+
