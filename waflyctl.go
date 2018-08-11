@@ -1242,6 +1242,24 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 	return true
 }
 
+// changeConfigurationSet function allows you to change a config set for a WAF object
+func setConfigurationSet(wafID, configurationSet string, client fastly.Client) bool {
+	wafs := []fastly.ConfigSetWAFs{{wafID}}
+
+	_, err := client.UpdateWAFConfigSet(&fastly.UpdateWAFConfigSetInput{
+		wafs,
+		configurationSet,
+	})
+
+	//check if we had an issue with our call
+	if err != nil {
+		Error.Println("Error setting configuration set ID: " + configurationSet)
+		return false
+	}
+
+	return true
+
+}
 
 // getConfigurationSets function provides a listing of all config sets
 func getConfigurationSets(apiEndpoint, apiKey string) bool {
@@ -1664,16 +1682,13 @@ func main() {
 	serviceID := flag.String("serviceid", "", "[Required] Service ID to Provision")
 	apiKey := flag.String("apikey", "", "[Required] API Key to use")
 	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoint to use.")
-	//emergency := flag.Bool("emergency", false, "is this an emergency provisioning..see [wiki link]")
-	//ssl := flag.Bool("ssl", false, "turn on ssl for this domain..see [wiki link]")
 	configFile := flag.String("config", HOMEDIRECTORY + "/.waflyctl.toml", "Location of configuration file for waflyctl.")
 
-	//var blocklist string
-	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
 	ListAllRules := flag.String("list-all-rules", "", "List all rules available on the Fastly platform for a given configuration set. Must pass a configuration set ID")
 	ListRules := flag.Bool("list-rules", false, "List current WAF rules and their status")
+
 	ListConfigSet := flag.Bool("list-configuration-sets", false, "List all configuration sets and their status")
-	//flag.StringVar(&blocklist, "blocklist", "gcp,aws,azure,aws,TOR", "Which blocklist should we provisioned on block mode in a comma delimited fashion. Available choices are: [for look here]")
+	ConfigurationSet := flag.String("configuration-set", "", "Changes WAF configuration set to the provided one]")
 
 	var Rules string
 	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..")
@@ -1934,6 +1949,14 @@ func main() {
 				Info.Printf("Listing all rules under configuration set ID: %s", *ListAllRules)
 				ConfigID := *ListAllRules
 				getAllRules(config.APIEndpoint, *apiKey, ConfigID)
+				Info.Println("Completed")
+				os.Exit(1)
+
+			//change a configuration set
+			case *ConfigurationSet != "":
+				Info.Printf("Changing Configuration Set to: %s", *ConfigurationSet)
+				ConfigID := *ConfigurationSet
+				setConfigurationSet(waf.ID,ConfigID, *client)
 				Info.Println("Completed")
 				os.Exit(1)
 
