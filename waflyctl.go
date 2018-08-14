@@ -1244,8 +1244,8 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 
 // changeConfigurationSet function allows you to change a config set for a WAF object
 func setConfigurationSet(wafID, configurationSet string, client fastly.Client) bool {
-	
-	wafs := []fastly.ConfigSetWAFs{{wafID}}
+
+	wafs := []fastly.ConfigSetWAFs{{ID:wafID}}
 
 	_, err := client.UpdateWAFConfigSet(&fastly.UpdateWAFConfigSetInput{
 		wafs,
