@@ -1248,9 +1248,10 @@ func setConfigurationSet(wafID, configurationSet string, client fastly.Client) b
 	wafs := []fastly.ConfigSetWAFs{{ID:wafID}}
 
 	_, err := client.UpdateWAFConfigSet(&fastly.UpdateWAFConfigSetInput{
-		wafs,
-		configurationSet,
+		WAFList:wafs,
+		ConfigSetID: configurationSet,
 	})
+
 
 	//check if we had an issue with our call
 	if err != nil {
