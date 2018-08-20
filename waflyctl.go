@@ -53,6 +53,7 @@ type TOMLConfig struct {
 	Logpath       string
 	APIEndpoint   string
 	Tags          []string
+	Publisher     []string
 	Action        string
 	Rules         []int64
 	DisabledRules []int64
@@ -990,17 +991,9 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 	Info.Printf("Config Version %v Validated successfully", version)
 	return true
 
-}
-
-/*
-func emergencyConfig() {
+}func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
 
 }
-
-func sslConfig() {
-
-}
-*/
 
 func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
 	//Work on Tags first
@@ -1679,7 +1672,10 @@ func main() {
 	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..")
 
 	var Tags string
-	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php")
+	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: wordpress,language-php,drupal")
+
+	var Publishers string
+	flag.StringVar(&Publishers, "publisher", "", "Which rule publisher to use in a comma delimited fashion, overwrites publisher defined in config file, choices are: owasp, trustwave, fastly")
 
 	Action := flag.String("action", "", "Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.")
 	EditOWASP := flag.Bool("owasp", false, "When set edits the OWASP object base on the settings in the configuration file.")
@@ -1792,6 +1788,17 @@ func main() {
 		for _, tag := range tags {
 			Info.Println(" - tag name: ", tag)
 			config.Tags = append(config.Tags, tag)
+		}
+	}
+
+	//if rule publisher is passed via CLI parse them and replace config parameters
+	if Publishers != "" {
+		config.Publisher = nil
+		Info.Println("using publisher set by CLI:")
+		publishers := strings.Split(Publishers, ",")
+		for _, publisher := range publishers {
+			Info.Println(" - publisher name: ", publisher)
+			config.Publisher = append(config.Publisher, publisher)
 		}
 	}
 
@@ -1957,6 +1964,19 @@ func main() {
 					Error.Printf("Issue patching ruleset see above error..")
 				}
 
+			case Publishers != "":
+				Info.Println("Editing Publishers")
+				//Publisher management
+				PublisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+
+				//patch ruleset
+				if PatchRules(*serviceID, waf.ID, *client) {
+					Info.Println("Rule set successfully patched")
+
+				} else {
+					Error.Printf("Issue patching ruleset see above error..")
+				}
+
 			case Rules != "":
 				Info.Println("Editing Rules")
 				//rule management
@@ -1995,6 +2015,8 @@ func main() {
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 				//rule management
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				//publisher management
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 				//OWASP
 				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
 
@@ -2024,6 +2046,9 @@ func main() {
 
 		//tags management
 		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+
+		//publisher management
+		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
 
 		//rule management
 		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
