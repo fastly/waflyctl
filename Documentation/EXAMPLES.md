@@ -25,3 +25,10 @@
 ## Listing all rules and their status for a service
 `./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -list-rules`
 
+## Set all rules of publisher owasp to logging 
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNAKCj -publisher owasp -action log`
+
+## Disable WAF in case of an emergency
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNAKCj -publisher owasp -action log`
+
+
