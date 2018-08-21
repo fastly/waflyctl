@@ -198,7 +198,7 @@ type Rule struct {
 	Attributes struct {
 		Message       string      `json:"message"`
 		Status        string      `json:"status"`
-		Origin        string      `json:"origin"`
+		Publisher        string      `json:"publisher"`
 		ParanoiaLevel int         `json:"paranoia_level"`
 		Revision      int         `json:"revision"`
 		Severity      interface{} `json:"severity"`
@@ -1544,25 +1544,25 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 	Info.Println("- Blocking Rules")
 	for _, r := range block {
 		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
-		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tPublisher: %s\tMessage: %s\n",
 			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
-			info.Attributes.Origin, info.Attributes.Message)
+			info.Attributes.Publisher, info.Attributes.Message)
 	}
 
 	Info.Println("- Logging Rules")
 	for _, r := range log {
 		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
-		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tPublisher: %s\tMessage: %s\n",
 			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
-			info.Attributes.Origin, info.Attributes.Message)
+			info.Attributes.Publisher, info.Attributes.Message)
 	}
 
 	Info.Println("- Disabled Rules")
 	for _, r := range disabled {
 		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
-		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tPublisher: %s\tMessage: %s\n",
 			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
-			info.Attributes.Origin, info.Attributes.Message)
+			info.Attributes.Publisher, info.Attributes.Message)
 	}
 	return true
 }
@@ -1636,11 +1636,11 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 		for _, p := range result.page {
 			for _, r := range p.Data {
-				if r.Attributes.Origin == "owasp" {
+				if r.Attributes.Publisher == "owasp" {
 					owasp = append(owasp, r)
-				} else if r.Attributes.Origin == "trustwave" {
+				} else if r.Attributes.Publisher == "trustwave" {
 					trustwave = append(trustwave, r)
-				} else if r.Attributes.Origin == "fastly" {
+				} else if r.Attributes.Publisher == "fastly" {
 					fastly = append(fastly, r)
 				}
 			}
@@ -1727,11 +1727,11 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 		for _, p := range result.page {
 			for _, r := range p.Data {
-				if r.Attributes.Origin == "owasp" {
+				if r.Attributes.Publisher == "owasp" {
 					owasp = append(owasp, r)
-				} else if r.Attributes.Origin == "trustwave" {
+				} else if r.Attributes.Publisher == "trustwave" {
 					trustwave = append(trustwave, r)
-				} else if r.Attributes.Origin == "fastly" {
+				} else if r.Attributes.Publisher == "fastly" {
 					fastly = append(fastly, r)
 				}
 			}

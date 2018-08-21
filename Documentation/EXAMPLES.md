@@ -29,6 +29,6 @@
 `./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNAKCj -publisher owasp -action log`
 
 ## Disable WAF in case of an emergency
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNAKCj -publisher owasp -action log`
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNAKCj -status disable`
 
 
