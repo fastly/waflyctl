@@ -1276,7 +1276,7 @@ func WithPXCondition(client fastly.Client, serviceID string, version int, config
 		Service:   serviceID,
 		Version:   version,
 		Name:      "waf-soc-with-px",
-		Statement: "req.http.x-request-id",
+		Statement: "req.http.fastly-soc-x-request-id",
 		Type:      "RESPONSE",
 		Priority:  10,
 	})
