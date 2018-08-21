@@ -11,6 +11,8 @@ Usage of waflyctl:
     	[Required] API Key to use
   -config string
     	Location of configuration file for waflyctl. (default "/Users/jhernandez/.waflyctl.toml")
+  -configuration-set string
+    	Changes WAF configuration set to the provided one]
   -delete
     	When set removes a WAF configuration created with waflyctl.
   -delete-logs
@@ -27,6 +29,8 @@ Usage of waflyctl:
     	List current WAF rules and their status
   -owasp
     	When set edits the OWASP object base on the settings in the configuration file.
+  -publisher string
+    	Which rule publisher to use in a comma delimited fashion, overwrites publisher defined in config file, choices are: owasp, trustwave, fastly
   -rules string
     	Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..
   -serviceid string
@@ -34,7 +38,7 @@ Usage of waflyctl:
   -status string
     	Disable or Enable the WAF. A disabled WAF will not block any traffic, also disabling a WAF does not change rule statuses on its configure policy.
   -tags string
-    	Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php
+    	Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: wordpress,language-php,drupal
   -with-perimeterx
     	Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.
 ```

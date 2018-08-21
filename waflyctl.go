@@ -15,10 +15,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/user"
 	"strconv"
 	"strings"
 	"time"
-	"os/user"
 )
 
 var (
@@ -43,16 +43,14 @@ var (
 
 	//HOMEDIRECTORY static variable
 	HOMEDIRECTORY string
-
 )
-
-
 
 // TOMLConfig is the applications config file
 type TOMLConfig struct {
 	Logpath       string
 	APIEndpoint   string
 	Tags          []string
+	Publisher     []string
 	Action        string
 	Rules         []int64
 	DisabledRules []int64
@@ -200,10 +198,10 @@ type Rule struct {
 	Attributes struct {
 		Message       string      `json:"message"`
 		Status        string      `json:"status"`
-		Origin        string      `json:"origin"`
+		Publisher        string      `json:"publisher"`
 		ParanoiaLevel int         `json:"paranoia_level"`
-		Revision      string      `json:"revision"`
-		Severity      int         `json:"severity"`
+		Revision      int         `json:"revision"`
+		Severity      interface{} `json:"severity"`
 		Version       interface{} `json:"version"`
 		RuleID        string      `json:"rule_id"`
 		ModsecRuleID  string      `json:"modsec_rule_id"`
@@ -256,7 +254,7 @@ type ConfigSet struct {
 	ID         string `json:"id"`
 	Type       string `json:"type"`
 	Attributes struct {
-		Active bool      `json:"active"`
+		Active bool   `json:"active"`
 		Name   string `json:"name"`
 	} `json:"attributes"`
 }
@@ -992,15 +990,108 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 
 }
 
-/*
-func emergencyConfig() {
+func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) bool {
+
+	//cleanup action
+	action := strings.TrimSpace(config.Action)
+	action = strings.ToLower(action)
+
+	for _, publisher := range config.Publisher {
+
+		//set our API call
+		apiCall := apiEndpoint + "/wafs/rules?filter[publisher]=" + publisher + "&page[number]=1"
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
+			return false
+		}
+
+		//unmarshal the response and extract the rules
+		body := RuleList{}
+
+		json.Unmarshal([]byte(resp.String()), &body)
+
+		if len(body.Data) == 0 {
+			Error.Println("No Fastly Rules found")
+			return false
+		}
+
+		result := PagesOfRules{[]RuleList{}}
+		result.page = append(result.page, body)
+
+		currentpage := body.Meta.CurrentPage
+		totalpages := body.Meta.TotalPages
+
+		Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+
+		// iterate through pages collecting all rules
+		for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
+
+			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+			//set our API call
+			apiCall := apiEndpoint + "/wafs/rules?filter[publisher]=" + publisher + "&page[number]=" + strconv.Itoa(currentpage)
+
+			resp, err := resty.R().
+				SetHeader("Accept", "application/vnd.api+json").
+				SetHeader("Fastly-Key", apiKey).
+				SetHeader("Content-Type", "application/vnd.api+json").
+				Get(apiCall)
+
+			//check if we had an issue with our call
+			if err != nil {
+				Error.Println("Error with API call: " + apiCall)
+				Error.Println(resp.String())
+				return false
+			}
+
+			//unmarshal the response and extract the service id
+			body := RuleList{}
+			json.Unmarshal([]byte(resp.String()), &body)
+			result.page = append(result.page, body)
+		}
+		Info.Println("- Publisher ", publisher)
+		for _, p := range result.page {
+			for _, r := range p.Data {
+
+				//set rule action on our tags
+				apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rules/" + r.ID + "/rule_status"
+
+				resp, err := resty.R().
+					SetHeader("Accept", "application/vnd.api+json").
+					SetHeader("Fastly-Key", apiKey).
+					SetHeader("Content-Type", "application/vnd.api+json").
+					SetBody(`{"data": {"attributes": {"status": "` + action + `"},"id": "` + wafID + `-` + r.ID + `","type": "rule_status"}}`).
+					Patch(apiCall)
+
+				//check if we had an issue with our call
+				if err != nil {
+					Error.Println("Error with API call: " + apiCall)
+					Error.Println(resp.String())
+					os.Exit(1)
+				}
+
+				//check if our response was ok
+				if resp.Status() == "200 OK" {
+					Info.Printf("Rule %s was configured in the WAF with action %s", r.ID, config.Action)
+				} else {
+					Error.Println("Could not set status: "+config.Action+" on rule tag: "+r.ID+" the response was: ", resp.String())
+				}
+			}
+		}
+
+	}
+
+	return true
 
 }
-
-func sslConfig() {
-
-}
-*/
 
 func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
 	//Work on Tags first
@@ -1245,13 +1336,12 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 // changeConfigurationSet function allows you to change a config set for a WAF object
 func setConfigurationSet(wafID, configurationSet string, client fastly.Client) bool {
 
-	wafs := []fastly.ConfigSetWAFs{{ID:wafID}}
+	wafs := []fastly.ConfigSetWAFs{{ID: wafID}}
 
 	_, err := client.UpdateWAFConfigSet(&fastly.UpdateWAFConfigSetInput{
-		WAFList:wafs,
+		WAFList:     wafs,
 		ConfigSetID: configurationSet,
 	})
-
 
 	//check if we had an issue with our call
 	if err != nil {
@@ -1289,7 +1379,6 @@ func getConfigurationSets(apiEndpoint, apiKey string) bool {
 		Error.Println("No Configuration Sets found")
 		return false
 	}
-
 
 	json.Unmarshal([]byte(resp.String()), &body)
 
@@ -1344,35 +1433,35 @@ func getConfigurationSets(apiEndpoint, apiKey string) bool {
 
 // getRuleInfo function
 func getRuleInfo(apiEndpoint, apiKey, ruleID string) Rule {
-		rule := Rule{}
-		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?page[size]=10&page[number]=1&filter[rule_id]=" + ruleID
+	rule := Rule{}
+	//set our API call
+	apiCall := apiEndpoint + "/wafs/rules?page[size]=10&page[number]=1&filter[rule_id]=" + ruleID
 
-		resp, err := resty.R().
-			SetHeader("Accept", "application/vnd.api+json").
-			SetHeader("Fastly-Key", apiKey).
-			SetHeader("Content-Type", "application/vnd.api+json").
-			Get(apiCall)
+	resp, err := resty.R().
+		SetHeader("Accept", "application/vnd.api+json").
+		SetHeader("Fastly-Key", apiKey).
+		SetHeader("Content-Type", "application/vnd.api+json").
+		Get(apiCall)
 
-		//check if we had an issue with our call
-		if err != nil {
-			Error.Println("Error with API call: " + apiCall)
-			Error.Println(resp.String())
-		}
+	//check if we had an issue with our call
+	if err != nil {
+		Error.Println("Error with API call: " + apiCall)
+		Error.Println(resp.String())
+	}
 
-		//unmarshal the response and extract the service id
-		body := RuleList{}
-		json.Unmarshal([]byte(resp.String()), &body)
+	//unmarshal the response and extract the service id
+	body := RuleList{}
+	json.Unmarshal([]byte(resp.String()), &body)
 
-		if len(body.Data) == 0 {
-			Error.Println("No Fastly Rules found")
-		}
+	if len(body.Data) == 0 {
+		Error.Println("No Fastly Rules found")
+	}
 
-		for _, r := range body.Data{
-			rule = r
-		}
+	for _, r := range body.Data {
+		rule = r
+	}
 
-		return rule
+	return rule
 }
 
 // getRules functions lists all rules for a WAFID and their status
@@ -1441,7 +1530,7 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 	var block []Rule
 
 	for _, p := range result.page {
-			for _, r := range p.Data {
+		for _, r := range p.Data {
 			if r.Attributes.Status == "log" {
 				log = append(log, r)
 			} else if r.Attributes.Status == "block" {
@@ -1455,25 +1544,25 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 	Info.Println("- Blocking Rules")
 	for _, r := range block {
 		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
-		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tPublisher: %s\tMessage: %s\n",
 			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
-				info.Attributes.Origin, info.Attributes.Message)
+			info.Attributes.Publisher, info.Attributes.Message)
 	}
 
 	Info.Println("- Logging Rules")
 	for _, r := range log {
 		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
-		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tPublisher: %s\tMessage: %s\n",
 			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
-			info.Attributes.Origin, info.Attributes.Message)
+			info.Attributes.Publisher, info.Attributes.Message)
 	}
 
 	Info.Println("- Disabled Rules")
 	for _, r := range disabled {
 		info := getRuleInfo(apiEndpoint, apiKey, r.Attributes.ModsecRuleID)
-		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tOrigin: %s\tMessage: %s\n",
+		Info.Printf("- Rule ID: %s\tStatus: %s\tParanoia: %d\tPublisher: %s\tMessage: %s\n",
 			r.Attributes.ModsecRuleID, r.Attributes.Status, info.Attributes.ParanoiaLevel,
-			info.Attributes.Origin, info.Attributes.Message)
+			info.Attributes.Publisher, info.Attributes.Message)
 	}
 	return true
 }
@@ -1547,11 +1636,11 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 		for _, p := range result.page {
 			for _, r := range p.Data {
-				if r.Attributes.Origin == "owasp" {
+				if r.Attributes.Publisher == "owasp" {
 					owasp = append(owasp, r)
-				} else if r.Attributes.Origin == "trustwave" {
+				} else if r.Attributes.Publisher == "trustwave" {
 					trustwave = append(trustwave, r)
-				} else if r.Attributes.Origin == "fastly" {
+				} else if r.Attributes.Publisher == "fastly" {
 					fastly = append(fastly, r)
 				}
 			}
@@ -1638,11 +1727,11 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 		for _, p := range result.page {
 			for _, r := range p.Data {
-				if r.Attributes.Origin == "owasp" {
+				if r.Attributes.Publisher == "owasp" {
 					owasp = append(owasp, r)
-				} else if r.Attributes.Origin == "trustwave" {
+				} else if r.Attributes.Publisher == "trustwave" {
 					trustwave = append(trustwave, r)
-				} else if r.Attributes.Origin == "fastly" {
+				} else if r.Attributes.Publisher == "fastly" {
 					fastly = append(fastly, r)
 				}
 			}
@@ -1684,7 +1773,7 @@ func main() {
 	serviceID := flag.String("serviceid", "", "[Required] Service ID to Provision")
 	apiKey := flag.String("apikey", "", "[Required] API Key to use")
 	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoint to use.")
-	configFile := flag.String("config", HOMEDIRECTORY + "/.waflyctl.toml", "Location of configuration file for waflyctl.")
+	configFile := flag.String("config", HOMEDIRECTORY+"/.waflyctl.toml", "Location of configuration file for waflyctl.")
 
 	ListAllRules := flag.String("list-all-rules", "", "List all rules available on the Fastly platform for a given configuration set. Must pass a configuration set ID")
 	ListRules := flag.Bool("list-rules", false, "List current WAF rules and their status")
@@ -1696,7 +1785,10 @@ func main() {
 	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..")
 
 	var Tags string
-	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: OWASP,wordpress,php")
+	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: wordpress,language-php,drupal")
+
+	var Publishers string
+	flag.StringVar(&Publishers, "publisher", "", "Which rule publisher to use in a comma delimited fashion, overwrites publisher defined in config file, choices are: owasp, trustwave, fastly")
 
 	Action := flag.String("action", "", "Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.")
 	EditOWASP := flag.Bool("owasp", false, "When set edits the OWASP object base on the settings in the configuration file.")
@@ -1812,6 +1904,18 @@ func main() {
 		}
 	}
 
+
+	//if rule publisher is passed via CLI parse them and replace config parameters
+	if Publishers != "" {
+		config.Publisher = nil
+		Info.Println("using publisher set by CLI:")
+		publishers := strings.Split(Publishers, ",")
+		for _, publisher := range publishers {
+			Info.Println(" - publisher name: ", publisher)
+			config.Publisher = append(config.Publisher, publisher)
+		}
+	}
+
 	//if rule action is passed via CLI parse them and replace config parameters
 	if *Action != "" {
 		config.Action = *Action
@@ -1915,7 +2019,7 @@ func main() {
 	//enable the WAF feature if is not already on
 	checkWAF(*apiKey, config.APIEndpoint)
 
-	Info.Printf("currently working with config version: %v.\n*Note rule, OWASP and tags changes are versionless actions and thus do not generate a new config version*", activeVersion)
+	Info.Printf("currently working with config version: %v.\n*Note Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version*", activeVersion)
 	wafs, err := client.ListWAFs(&fastly.ListWAFsInput{
 		Service: *serviceID,
 		Version: activeVersion,
@@ -1958,7 +2062,7 @@ func main() {
 			case *ConfigurationSet != "":
 				Info.Printf("Changing Configuration Set to: %s", *ConfigurationSet)
 				ConfigID := *ConfigurationSet
-				setConfigurationSet(waf.ID,ConfigID, *client)
+				setConfigurationSet(waf.ID, ConfigID, *client)
 				Info.Println("Completed")
 				os.Exit(1)
 
@@ -1973,6 +2077,19 @@ func main() {
 				Info.Println("Editing Tags")
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+
+				//patch ruleset
+				if PatchRules(*serviceID, waf.ID, *client) {
+					Info.Println("Rule set successfully patched")
+
+				} else {
+					Error.Printf("Issue patching ruleset see above error..")
+				}
+
+			case Publishers != "":
+				Info.Println("Editing Publishers")
+				//Publisher management
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2020,6 +2137,8 @@ func main() {
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 				//rule management
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				//publisher management
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 				//OWASP
 				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
 
@@ -2047,8 +2166,12 @@ func main() {
 		//provision a new WAF service
 		wafID := provisionWAF(*client, *serviceID, *apiKey, config, version)
 
+		//publisher management
+		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+
 		//tags management
 		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+
 
 		//rule management
 		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
