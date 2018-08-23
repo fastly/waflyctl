@@ -1782,7 +1782,7 @@ func main() {
 	ConfigurationSet := flag.String("configuration-set", "", "Changes WAF configuration set to the provided one]")
 
 	var Rules string
-	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..")
+	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 1010010,931100,931110..")
 
 	var Tags string
 	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: wordpress,language-php,drupal")
