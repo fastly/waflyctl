@@ -32,7 +32,7 @@ Usage of waflyctl:
   -publisher string
     	Which rule publisher to use in a comma delimited fashion, overwrites publisher defined in config file, choices are: owasp, trustwave, fastly
   -rules string
-    	Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 94011,93110,1000101..
+    	Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 1010010,931100,931110..
   -serviceid string
     	[Required] Service ID to Provision
   -status string

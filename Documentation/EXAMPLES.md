@@ -3,7 +3,7 @@
 `./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWse5mGznpxxxx -tags OWASP`
 
 ## Add three rules to block mode on a Service with a WAF provisioned
-`./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWmx5mGznpxxxx -rules 94011,93110,93111 -action block`
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid BtYEP3WtWmx5mGznpxxxx -rules 1010010,931100,931110 -action block`
 
 ## Delete a WAF previously provisioned
 `./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNxxxx -delete`
