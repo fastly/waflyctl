@@ -1504,7 +1504,7 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 
 		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 		//set our API call
-		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[number]=" + strconv.Itoa(currentpage)
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1572,7 +1572,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 	if ConfigID == "" {
 		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=1"
+		apiCall := apiEndpoint + "/wafs/rules?page[number]=1"
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1609,7 +1609,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 			//set our API call
-			apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+			apiCall := apiEndpoint + "/wafs/rules?page[number]=" + strconv.Itoa(currentpage)
 
 			resp, err := resty.R().
 				SetHeader("Accept", "application/vnd.api+json").
@@ -1663,7 +1663,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 	} else {
 
 		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[size]=200&page[number]=1"
+		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[number]=1"
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1700,7 +1700,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 			//set our API call
-			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[number]=" + strconv.Itoa(currentpage)
 
 			resp, err := resty.R().
 				SetHeader("Accept", "application/vnd.api+json").
