@@ -1317,7 +1317,7 @@ func WithPXCondition(client fastly.Client, serviceID string, version int, config
 
 }
 
-// WithPXCondition adds a condition if PX is present to avoid null host and request ID logging
+// WithShieldingCondition adds a condition if shielding is present to avoid multiple events with duplicate request ID logging
 func WithShieldingCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
 
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
