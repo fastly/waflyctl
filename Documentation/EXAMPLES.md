@@ -31,4 +31,5 @@
 ## Disable WAF in case of an emergency
 `./waflyctl -apikey $FASTLY_TOKEN -serviceid 7YCnicdpjTvxR2JdzNAKCj -status disable`
 
-
+## Customer with shielding
+`./waflyctl -apikey $FASTLY_TOKEN -serviceid 2mvVrPMLDWSaZzCZIpbcUI -enable-logs-only -with-shielding`

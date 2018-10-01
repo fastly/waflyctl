@@ -3,7 +3,7 @@ waflyctl configuration file contains the default parameters to build and also ma
 If needed please adjust them in waflyctl.toml, and or pass them via command line.
 ```
 Usage of waflyctl:
-  -action string
+ -action string
     	Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.
   -apiendpoint string
     	Fastly API endpoint to use. (default "https://api.fastly.com")
@@ -41,4 +41,6 @@ Usage of waflyctl:
     	Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: wordpress,language-php,drupal
   -with-perimeterx
     	Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.
+  -with-shielding
+    	Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.
 ```

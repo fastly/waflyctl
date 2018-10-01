@@ -1317,6 +1317,73 @@ func WithPXCondition(client fastly.Client, serviceID string, version int, config
 
 }
 
+// WithPXCondition adds a condition if PX is present to avoid null host and request ID logging
+func WithShieldingCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
+
+	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
+		Service: serviceID,
+		Version: version,
+	})
+
+	if err != nil {
+		Error.Fatal(err)
+		return false
+	}
+	for _, condition := range conditions {
+		//do we have a condition name waf-soc-with-shielding, if not create one
+		//iterate through returned conditions check if any say waf-soc-with-shielding if not lets configure the service
+		if strings.EqualFold(condition.Name, "waf-soc-with-shielding") {
+			Error.Println("WAF with shielding logging condition already exists with name: " + condition.Name + "..skipping creating conditions")
+			return false
+		}
+	}
+
+	Info.Printf("WAF enabled with shielding, creating logging condition: waf-soc-with-shielding")
+	_, err = client.CreateCondition(&fastly.CreateConditionInput{
+		Service:   serviceID,
+		Version:   version,
+		Name:      "waf-soc-with-shielding",
+		Statement: "!req.backend.is_shield",
+		Type:      "RESPONSE",
+		Priority:  10,
+	})
+
+	if err != nil {
+		Error.Fatal(err)
+		return false
+	}
+
+	//update syslog endpoints
+	Info.Printf("WAF enabled with shielding, applying condition 'waf-soc-with-shielding' to web logs %s", config.Weblog.Name)
+	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
+		Service:           serviceID,
+		Version:           version,
+		Name:              config.Weblog.Name,
+		ResponseCondition: "waf-soc-with-shielding",
+	})
+
+	if err != nil {
+		Error.Fatal(err)
+		return false
+	}
+
+	Info.Printf("WAF enabled with shielding, applying condition 'waf-soc-with-shielding' to waf logs %s", config.Waflog.Name)
+	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
+		Service:           serviceID,
+		Version:           version,
+		Name:              config.Waflog.Name,
+		ResponseCondition: "waf-soc-with-shielding",
+	})
+
+	if err != nil {
+		Error.Fatal(err)
+		return false
+	}
+
+	return true
+
+}
+
 // PatchRules function patches a rule set after a status of a rule has been changed
 func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 
@@ -1796,6 +1863,7 @@ func main() {
 	LogOnly := flag.Bool("enable-logs-only", false, "Add logging configuration only to the service, the tool will not make any other changes, can be paired with-perimeterx")
 	DeleteLogs := flag.Bool("delete-logs", false, "When set removes WAF logging configuration.")
 	WithPX := flag.Bool("with-perimeterx", false, "Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.")
+	WithShielding := flag.Bool("with-shielding", false, "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.")
 	Status := flag.String("status", "", "Disable or Enable the WAF. A disabled WAF will not block any traffic, also disabling a WAF does not change rule statuses on its configure policy. ")
 	flag.Parse()
 
@@ -1969,6 +2037,11 @@ func main() {
 			os.Exit(1)
 		}
 
+		if *WithShielding {
+			Info.Printf("WAF enabled with Shielding, adding logging condition")
+			WithShieldingCondition(*client, *serviceID, version, config)
+		}
+
 		if *WithPX {
 			Info.Printf("WAF enabled with PerimterX, adding logging condition")
 			WithPXCondition(*client, *serviceID, version, config)
@@ -2132,6 +2205,14 @@ func main() {
 
 				WithPXCondition(*client, *serviceID, version, config)
 
+			case *WithShielding:
+				Info.Printf("WAF enabled with shielding, adding logging condition")
+
+				//clone current version
+				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+
+				WithShieldingCondition(*client, *serviceID, version, config)
+
 			default:
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
@@ -2179,10 +2260,14 @@ func main() {
 		//Default Disabled
 		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
 
+		Info.Printf("WAF enabled with shielding, adding logging condition")
+		WithShieldingCondition(*client, *serviceID, version, config)
+
 		if *WithPX {
 			Info.Printf("WAF enabled with PerimterX, adding logging condition")
 			WithPXCondition(*client, *serviceID, version, config)
 		}
+
 
 		latest, err := client.LatestVersion(&fastly.LatestVersionInput{
 			Service: *serviceID,
