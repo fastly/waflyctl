@@ -118,7 +118,7 @@ func (r *Request) SetQueryString(query string) *Request {
 			}
 		}
 	} else {
-		r.client.Log.Printf("ERROR [%v]", err)
+		r.client.Log.Printf("ERROR %v", err)
 	}
 	return r
 }
@@ -396,6 +396,14 @@ func (r *Request) ExpectContentType(contentType string) *Request {
 	return r
 }
 
+// SetJSONEscapeHTML method is to enable/disable the HTML escape on JSON marshal.
+//
+// NOTE: This option only applicable to standard JSON Marshaller.
+func (r *Request) SetJSONEscapeHTML(b bool) *Request {
+	r.jsonEscapeHTML = b
+	return r
+}
+
 //‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾‾
 // HTTP verb method starts here
 //___________________________________
@@ -471,7 +479,7 @@ func (r *Request) Execute(method, url string) (*Response, error) {
 
 			resp, err = r.client.execute(r)
 			if err != nil {
-				r.client.Log.Printf("ERROR [%v] Attempt [%v]", err, attempt)
+				r.client.Log.Printf("ERROR %v, Attempt %v", err, attempt)
 				if r.isContextCancelledIfAvailable() {
 					// stop Backoff from retrying request if request has been
 					// canceled by context
