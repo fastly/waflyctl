@@ -19,6 +19,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
+	"io/ioutil"
+	"crypto/sha1"
+	"encoding/hex"
 )
 
 var (
@@ -60,6 +64,17 @@ type TOMLConfig struct {
 	Vclsnippet    VCLSnippetSettings
 	Response      ResponseSettings
 	Prefetch      PrefetchSettings
+}
+
+// Backup is a backup of the rule status for a WAF
+type Backup struct {
+	ServiceID string
+	ID      string
+	Updated   time.Time
+	Disabled  []string
+	Block     []string
+	Log       []string
+	Owasp     owaspSettings
 }
 
 type owaspSettings struct {
@@ -198,7 +213,7 @@ type Rule struct {
 	Attributes struct {
 		Message       string      `json:"message"`
 		Status        string      `json:"status"`
-		Publisher        string      `json:"publisher"`
+		Publisher     string      `json:"publisher"`
 		ParanoiaLevel int         `json:"paranoia_level"`
 		Revision      int         `json:"revision"`
 		Severity      interface{} `json:"severity"`
@@ -1571,7 +1586,7 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 
 		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 		//set our API call
-		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[number]=" + strconv.Itoa(currentpage)
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1639,7 +1654,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 	if ConfigID == "" {
 		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=1"
+		apiCall := apiEndpoint + "/wafs/rules?page[number]=1"
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1676,7 +1691,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 			//set our API call
-			apiCall := apiEndpoint + "/wafs/rules?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+			apiCall := apiEndpoint + "/wafs/rules?page[number]=" + strconv.Itoa(currentpage)
 
 			resp, err := resty.R().
 				SetHeader("Accept", "application/vnd.api+json").
@@ -1730,7 +1745,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 	} else {
 
 		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[size]=200&page[number]=1"
+		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[number]=1"
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1767,7 +1782,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 			//set our API call
-			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[number]=" + strconv.Itoa(currentpage)
 
 			resp, err := resty.R().
 				SetHeader("Accept", "application/vnd.api+json").
@@ -1825,6 +1840,161 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 }
 
+// backupConfig function stores all rules, status, configuration set, and OWASP configuration locally
+func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client) bool {
+
+	//get all rules and their status
+	//set our API call
+	apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses"
+
+	resp, err := resty.R().
+		SetHeader("Accept", "application/vnd.api+json").
+		SetHeader("Fastly-Key", apiKey).
+		SetHeader("Content-Type", "application/vnd.api+json").
+		Get(apiCall)
+
+	//check if we had an issue with our call
+	if err != nil {
+		Error.Println("Error with API call: " + apiCall)
+		Error.Println(resp.String())
+		return false
+	}
+
+	//unmarshal the response and extract the service id
+	body := RuleList{}
+	json.Unmarshal([]byte(resp.String()), &body)
+
+	if len(body.Data) == 0 {
+		Error.Println("No Fastly Rules found to back up")
+		return false
+	}
+
+	result := PagesOfRules{[]RuleList{}}
+	result.page = append(result.page, body)
+
+	currentpage := body.Meta.CurrentPage
+	totalpages := body.Meta.TotalPages
+
+	Info.Printf("Backing up %d rules", body.Meta.RecordCount)
+
+	// iterate through pages collecting all rules
+	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
+
+		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+		//set our API call
+		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+
+		resp, err := resty.R().
+			SetHeader("Accept", "application/vnd.api+json").
+			SetHeader("Fastly-Key", apiKey).
+			SetHeader("Content-Type", "application/vnd.api+json").
+			Get(apiCall)
+
+		//check if we had an issue with our call
+		if err != nil {
+			Error.Println("Error with API call: " + apiCall)
+			Error.Println(resp.String())
+			return false
+		}
+
+		//unmarshal the response and extract the service id
+		body := RuleList{}
+		json.Unmarshal([]byte(resp.String()), &body)
+		result.page = append(result.page, body)
+	}
+
+	var log []string
+	var disabled []string
+	var block []string
+
+	for _, p := range result.page {
+		for _, r := range p.Data {
+			if r.Attributes.Status == "log" {
+				log = append(log, r.Attributes.ModsecRuleID)
+			} else if r.Attributes.Status == "block" {
+				block = append(block, r.Attributes.ModsecRuleID)
+			} else if r.Attributes.Status == "disabled" {
+				disabled = append(disabled, r.Attributes.ModsecRuleID)
+			}
+		}
+	}
+
+	//backup OWASP settings
+	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
+		Service: serviceID,
+		ID:      wafID,
+	})
+
+	if owasp.ID == "" {
+		Error.Println("No OWASP Object to back up")
+		return false
+	}
+
+	o := owaspSettings{
+		AllowedHTTPVersions:           owasp.AllowedHTTPVersions,
+		AllowedMethods:                owasp.AllowedMethods,
+		AllowedRequestContentType:     owasp.AllowedRequestContentType,
+		ArgLength:                     owasp.ArgLength,
+		ArgNameLength:                 owasp.ArgNameLength,
+		CombinedFileSizes:             owasp.CombinedFileSizes,
+		CriticalAnomalyScore:          owasp.CriticalAnomalyScore,
+		CRSValidateUTF8Encoding:       owasp.CRSValidateUTF8Encoding,
+		ErrorAnomalyScore:             owasp.ErrorAnomalyScore,
+		HTTPViolationScoreThreshold:   owasp.HTTPViolationScoreThreshold,
+		InboundAnomalyScoreThreshold:  owasp.InboundAnomalyScoreThreshold,
+		LFIScoreThreshold:             owasp.LFIScoreThreshold,
+		MaxFileSize:                   owasp.MaxFileSize,
+		MaxNumArgs:                    owasp.MaxNumArgs,
+		NoticeAnomalyScore:            owasp.NoticeAnomalyScore,
+		ParanoiaLevel:                 owasp.ParanoiaLevel,
+		PHPInjectionScoreThreshold:    owasp.PHPInjectionScoreThreshold,
+		RCEScoreThreshold:             owasp.RCEScoreThreshold,
+		RestrictedExtensions:          owasp.RestrictedExtensions,
+		RestrictedHeaders:             owasp.RestrictedHeaders,
+		RFIScoreThreshold:             owasp.RFIScoreThreshold,
+		SessionFixationScoreThreshold: owasp.SessionFixationScoreThreshold,
+		SQLInjectionScoreThreshold:    owasp.SQLInjectionScoreThreshold,
+		XSSScoreThreshold:             owasp.XSSScoreThreshold,
+		TotalArgLength:                owasp.TotalArgLength,
+		WarningAnomalyScore:           owasp.WarningAnomalyScore,
+	}
+
+	//create a hash
+	hasher := sha1.New()
+	hasher.Write([]byte(serviceID + time.Now().String()))
+	sha := hex.EncodeToString((hasher.Sum(nil)))
+
+	//Safe Backup Object
+	backup := Backup{
+		ID:      sha,
+		ServiceID: serviceID,
+		Disabled:  disabled,
+		Block:     block,
+		Log:       log,
+		Owasp:     o,
+		Updated: time.Now(),
+	}
+
+	buf := new(bytes.Buffer)
+	if err := toml.NewEncoder(buf).Encode(backup); err != nil {
+		Error.Println(err)
+		return false
+	}
+
+	// make filename
+	filename := "waflyclt_" + serviceID + ".toml"
+
+
+	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
+	if err != nil {
+		Error.Println(err)
+		return false
+	}
+
+	Info.Printf("Bytes written: %d to %s\n", buf.Len(), filename)
+	return true
+}
+
 func main() {
 
 	// grab a users home directory
@@ -1862,6 +2032,7 @@ func main() {
 	Deprovision := flag.Bool("delete", false, "When set removes a WAF configuration created with waflyctl.")
 	LogOnly := flag.Bool("enable-logs-only", false, "Add logging configuration only to the service, the tool will not make any other changes, can be paired with-perimeterx")
 	DeleteLogs := flag.Bool("delete-logs", false, "When set removes WAF logging configuration.")
+	Backup := flag.Bool("backup", false, "When set stores a copy of the WAF configuration in "+HOMEDIRECTORY+"/.waflyctl-<service-id>.rules")
 	WithPX := flag.Bool("with-perimeterx", false, "Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.")
 	WithShielding := flag.Bool("with-shielding", false, "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.")
 	Status := flag.String("status", "", "Disable or Enable the WAF. A disabled WAF will not block any traffic, also disabling a WAF does not change rule statuses on its configure policy. ")
@@ -1971,7 +2142,6 @@ func main() {
 			config.Tags = append(config.Tags, tag)
 		}
 	}
-
 
 	//if rule publisher is passed via CLI parse them and replace config parameters
 	if Publishers != "" {
@@ -2212,6 +2382,17 @@ func main() {
 				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
 
 				WithShieldingCondition(*client, *serviceID, version, config)
+        
+			//back up WAF rules locally
+			case *Backup:
+				Info.Printf("WAF Backups enabled")
+
+				//clone current version
+				//_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+
+				backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client)
+				//WithPXCondition(*client, *serviceID, version, config)
+
 
 			default:
 				//tags management
@@ -2252,7 +2433,6 @@ func main() {
 
 		//tags management
 		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
-
 
 		//rule management
 		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
