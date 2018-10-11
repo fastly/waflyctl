@@ -1358,7 +1358,7 @@ func WithShieldingCondition(client fastly.Client, serviceID string, version int,
 		Service:   serviceID,
 		Version:   version,
 		Name:      "waf-soc-with-shielding",
-		Statement: "!req.backend.is_shield",
+		Statement: "waf.executed || fastly_info.state == \"HIT\"",
 		Type:      "RESPONSE",
 		Priority:  10,
 	})
