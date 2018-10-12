@@ -6,6 +6,9 @@ Author: @Enrique (enrique@fastly.com)
 package main
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,16 +16,13 @@ import (
 	"github.com/sethvargo/go-fastly/fastly"
 	"gopkg.in/resty.v1"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
 	"time"
-	"bytes"
-	"io/ioutil"
-	"crypto/sha1"
-	"encoding/hex"
 )
 
 var (
@@ -69,7 +69,7 @@ type TOMLConfig struct {
 // Backup is a backup of the rule status for a WAF
 type Backup struct {
 	ServiceID string
-	ID      string
+	ID        string
 	Updated   time.Time
 	Disabled  []string
 	Block     []string
@@ -1966,13 +1966,13 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 
 	//Safe Backup Object
 	backup := Backup{
-		ID:      sha,
+		ID:        sha,
 		ServiceID: serviceID,
 		Disabled:  disabled,
 		Block:     block,
 		Log:       log,
 		Owasp:     o,
-		Updated: time.Now(),
+		Updated:   time.Now(),
 	}
 
 	buf := new(bytes.Buffer)
@@ -1983,7 +1983,6 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 
 	// make filename
 	filename := "waflyclt_" + serviceID + ".toml"
-
 
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	if err != nil {
@@ -2382,7 +2381,7 @@ func main() {
 				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
 
 				WithShieldingCondition(*client, *serviceID, version, config)
-        
+
 			//back up WAF rules locally
 			case *Backup:
 				Info.Printf("WAF Backups enabled")
@@ -2392,7 +2391,6 @@ func main() {
 
 				backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client)
 				//WithPXCondition(*client, *serviceID, version, config)
-
 
 			default:
 				//tags management
@@ -2447,7 +2445,6 @@ func main() {
 			Info.Printf("WAF enabled with PerimterX, adding logging condition")
 			WithPXCondition(*client, *serviceID, version, config)
 		}
-
 
 		latest, err := client.LatestVersion(&fastly.LatestVersionInput{
 			Service: *serviceID,
