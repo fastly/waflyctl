@@ -6,23 +6,23 @@ Author: @Enrique (enrique@fastly.com)
 package main
 
 import (
+	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/BurntSushi/toml"
 	"github.com/sethvargo/go-fastly/fastly"
+	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/resty.v1"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
 	"strconv"
 	"strings"
 	"time"
-	"bytes"
-	"io/ioutil"
-	"crypto/sha1"
-	"encoding/hex"
 )
 
 var (
@@ -69,7 +69,7 @@ type TOMLConfig struct {
 // Backup is a backup of the rule status for a WAF
 type Backup struct {
 	ServiceID string
-	ID      string
+	ID        string
 	Updated   time.Time
 	Disabled  []string
 	Block     []string
@@ -1007,10 +1007,6 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 
 func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) bool {
 
-	//cleanup action
-	action := strings.TrimSpace(config.Action)
-	action = strings.ToLower(action)
-
 	for _, publisher := range config.Publisher {
 
 		//set our API call
@@ -1083,7 +1079,7 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly
 					SetHeader("Accept", "application/vnd.api+json").
 					SetHeader("Fastly-Key", apiKey).
 					SetHeader("Content-Type", "application/vnd.api+json").
-					SetBody(`{"data": {"attributes": {"status": "` + action + `"},"id": "` + wafID + `-` + r.ID + `","type": "rule_status"}}`).
+					SetBody(`{"data": {"attributes": {"status": "` + config.Action + `"},"id": "` + wafID + `-` + r.ID + `","type": "rule_status"}}`).
 					Patch(apiCall)
 
 				//check if we had an issue with our call
@@ -1112,10 +1108,6 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Clie
 	//Work on Tags first
 	//API Endpoint to call for domain searches
 	apiCall := apiEndpoint + "/wafs/tags"
-
-	//cleanup action
-	action := strings.TrimSpace(config.Action)
-	action = strings.ToLower(action)
 
 	//make the call
 
@@ -1149,7 +1141,7 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Clie
 			SetHeader("Accept", "application/vnd.api+json").
 			SetHeader("Fastly-Key", apiKey).
 			SetHeader("Content-Type", "application/vnd.api+json").
-			SetBody(`{"data": {"attributes": {"status": "` + action + `","name": "` + tag + `","force": true},"id": "` + wafID + `","type": "rule_status"}}`).
+			SetBody(`{"data": {"attributes": {"status": "` + config.Action + `","name": "` + tag + `","force": true},"id": "` + wafID + `","type": "rule_status"}}`).
 			Post(apiCall)
 
 		//check if we had an issue with our call
@@ -1161,9 +1153,9 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Clie
 
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf(action+" %d rule on the WAF for tag: "+tag, len(body.Data))
+			Info.Printf(config.Action+" %d rule on the WAF for tag: "+tag, len(body.Data))
 		} else {
-			Error.Println("Could not set status: "+action+" on rule tag: "+tag+" the response was: ", resp.String())
+			Error.Println("Could not set status: "+config.Action+" on rule tag: "+tag+" the response was: ", resp.String())
 		}
 	}
 }
@@ -1196,10 +1188,6 @@ func changeStatus(apiEndpoint, apiKey, wafID, status string) {
 }
 
 func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
-	//cleanup action
-	action := strings.TrimSpace(config.Action)
-	action = strings.ToLower(action)
-
 	//implement individual rule management here
 	for _, rule := range config.Rules {
 
@@ -1212,7 +1200,7 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cli
 			SetHeader("Accept", "application/vnd.api+json").
 			SetHeader("Fastly-Key", apiKey).
 			SetHeader("Content-Type", "application/vnd.api+json").
-			SetBody(`{"data": {"attributes": {"status": "` + action + `"},"id": "` + wafID + `-` + ruleID + `","type": "rule_status"}}`).
+			SetBody(`{"data": {"attributes": {"status": "` + config.Action + `"},"id": "` + wafID + `-` + ruleID + `","type": "rule_status"}}`).
 			Patch(apiCall)
 
 		//check if we had an issue with our call
@@ -1613,11 +1601,12 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 
 	for _, p := range result.page {
 		for _, r := range p.Data {
-			if r.Attributes.Status == "log" {
+			switch r.Attributes.Status {
+			case "log":
 				log = append(log, r)
-			} else if r.Attributes.Status == "block" {
+			case "block":
 				block = append(block, r)
-			} else if r.Attributes.Status == "disabled" {
+			case "disabled":
 				disabled = append(disabled, r)
 			}
 		}
@@ -1718,11 +1707,12 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 		for _, p := range result.page {
 			for _, r := range p.Data {
-				if r.Attributes.Publisher == "owasp" {
+				switch r.Attributes.Publisher {
+				case "owasp":
 					owasp = append(owasp, r)
-				} else if r.Attributes.Publisher == "trustwave" {
+				case "trustwave":
 					trustwave = append(trustwave, r)
-				} else if r.Attributes.Publisher == "fastly" {
+				case "fastly":
 					fastly = append(fastly, r)
 				}
 			}
@@ -1809,11 +1799,12 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 		for _, p := range result.page {
 			for _, r := range p.Data {
-				if r.Attributes.Publisher == "owasp" {
+				switch r.Attributes.Publisher {
+				case "owasp":
 					owasp = append(owasp, r)
-				} else if r.Attributes.Publisher == "trustwave" {
+				case "trustwave":
 					trustwave = append(trustwave, r)
-				} else if r.Attributes.Publisher == "fastly" {
+				case "fastly":
 					fastly = append(fastly, r)
 				}
 			}
@@ -1909,11 +1900,12 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 
 	for _, p := range result.page {
 		for _, r := range p.Data {
-			if r.Attributes.Status == "log" {
+			switch r.Attributes.Status {
+			case "log":
 				log = append(log, r.Attributes.ModsecRuleID)
-			} else if r.Attributes.Status == "block" {
+			case "block":
 				block = append(block, r.Attributes.ModsecRuleID)
-			} else if r.Attributes.Status == "disabled" {
+			case "disabled":
 				disabled = append(disabled, r.Attributes.ModsecRuleID)
 			}
 		}
@@ -1966,13 +1958,13 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 
 	//Safe Backup Object
 	backup := Backup{
-		ID:      sha,
+		ID:        sha,
 		ServiceID: serviceID,
 		Disabled:  disabled,
 		Block:     block,
 		Log:       log,
 		Owasp:     o,
-		Updated: time.Now(),
+		Updated:   time.Now(),
 	}
 
 	buf := new(bytes.Buffer)
@@ -1984,7 +1976,6 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	// make filename
 	filename := "waflyclt_" + serviceID + ".toml"
 
-
 	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
 	if err != nil {
 		Error.Println(err)
@@ -1995,64 +1986,41 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	return true
 }
 
-func main() {
-
-	// grab a users home directory
+func homeDir() string {
 	user, err := user.Current()
 	if err != nil {
-		fmt.Println("error reading current user name : ", err)
-		os.Exit(1)
+		return os.Getenv("HOME")
 	}
+	return user.HomeDir
+}
 
-	HOMEDIRECTORY := user.HomeDir
+var (
+	app              = kingpin.New("waflyctl", "Fastly WAF Control Tool").Version(version)
+	action           = app.Flag("action", "Action to take on the rules list and rule tags. Overwrites action defined in config file. One of: disabled, block, log.").Enum("disabled", "block", "log")
+	apiEndpoint      = app.Flag("apiendpoint", "Fastly API endpoint to use.").Default("https://api.fastly.com").String()
+	apiKey           = app.Flag("apikey", "API Key to use. Required.").Required().String()
+	backup           = app.Flag("backup", "Store a copy of the WAF configuration in "+homeDir()+"/.waflyctl-<service-id>.rules.").Bool()
+	configFile       = app.Flag("config", "Location of configuration file for waflyctl.").Default(homeDir() + "/.waflyctl.toml").String()
+	configurationSet = app.Flag("configuration-set", "Changes WAF configuration set to the provided one.").String()
+	deprovision      = app.Flag("delete", "Remove a WAF configuration created with waflyctl.").Bool()
+	deleteLogs       = app.Flag("delete-logs", "When set removes WAF logging configuration.").Bool()
+	domain           = app.Flag("domain", "Domain to Provision. You can use Service ID alternatively.").String()
+	logOnly          = app.Flag("enable-logs-only", "Add logging configuration only to the service. No other changes will be made. Can be used together with --with-perimeterx").Bool()
+	listAllRules     = app.Flag("list-all-rules", "List all rules available on the Fastly platform for a given configuration set.").PlaceHolder("CONFIGURATION-SET").String()
+	listConfigSet    = app.Flag("list-configuration-sets", "List all configuration sets and their status.").Bool()
+	listRules        = app.Flag("list-rules", "List current WAF rules and their status.").Bool()
+	editOWASP        = app.Flag("owasp", "Edit the OWASP object base on the settings in the configuration file.").Bool()
+	publishers       = app.Flag("publisher", "Which rule publisher to use in a comma delimited fashion. Overwrites publisher defined in config file. Choices are: owasp, trustwave, fastly").String()
+	rules            = app.Flag("rules", "Which rules to apply action on in a comma delimited fashion. Overwrites ruleid defined in config file. Example: 1010010,931100,931110.").String()
+	serviceID        = app.Flag("serviceid", "Service ID to Provision.").String()
+	status           = app.Flag("status", "Disable or Enable the WAF. A disabled WAF will not block any traffic. In addition disabling a WAF does not change rule statuses on its configure policy. One of: disable, enable.").Enum("disable", "enable")
+	tags             = app.Flag("tags", "Which rules tags to add to the ruleset in a comma delimited fashion. Overwrites tags defined in config file. Example: wordpress,language-php,drupal.").String()
+	withPX           = app.Flag("with-perimeterx", "Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.").Bool()
+	withShielding    = app.Flag("with-shielding", "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.").Bool()
+)
 
-	domain := flag.String("domain", "", "[Required] Domain to Provision, you can use Service ID alternatively")
-	serviceID := flag.String("serviceid", "", "[Required] Service ID to Provision")
-	apiKey := flag.String("apikey", "", "[Required] API Key to use")
-	apiEndpoint := flag.String("apiendpoint", "https://api.fastly.com", "Fastly API endpoint to use.")
-	configFile := flag.String("config", HOMEDIRECTORY+"/.waflyctl.toml", "Location of configuration file for waflyctl.")
-
-	ListAllRules := flag.String("list-all-rules", "", "List all rules available on the Fastly platform for a given configuration set. Must pass a configuration set ID")
-	ListRules := flag.Bool("list-rules", false, "List current WAF rules and their status")
-
-	ListConfigSet := flag.Bool("list-configuration-sets", false, "List all configuration sets and their status")
-	ConfigurationSet := flag.String("configuration-set", "", "Changes WAF configuration set to the provided one]")
-
-	var Rules string
-	flag.StringVar(&Rules, "rules", "", "Which rules to apply action on in a comma delimited fashion, overwrites ruleid defined in config file, example: 1010010,931100,931110..")
-
-	var Tags string
-	flag.StringVar(&Tags, "tags", "", "Which rules tags to add to the ruleset in a comma delimited fashion, overwrites tags defined in config file, example: wordpress,language-php,drupal")
-
-	var Publishers string
-	flag.StringVar(&Publishers, "publisher", "", "Which rule publisher to use in a comma delimited fashion, overwrites publisher defined in config file, choices are: owasp, trustwave, fastly")
-
-	Action := flag.String("action", "", "Select what action to take on the rules list and rule tags. Also overwrites action defined in config file, choices are: disabled, block, log.")
-	EditOWASP := flag.Bool("owasp", false, "When set edits the OWASP object base on the settings in the configuration file.")
-	Deprovision := flag.Bool("delete", false, "When set removes a WAF configuration created with waflyctl.")
-	LogOnly := flag.Bool("enable-logs-only", false, "Add logging configuration only to the service, the tool will not make any other changes, can be paired with-perimeterx")
-	DeleteLogs := flag.Bool("delete-logs", false, "When set removes WAF logging configuration.")
-	Backup := flag.Bool("backup", false, "When set stores a copy of the WAF configuration in "+HOMEDIRECTORY+"/.waflyctl-<service-id>.rules")
-	WithPX := flag.Bool("with-perimeterx", false, "Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.")
-	WithShielding := flag.Bool("with-shielding", false, "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.")
-	Status := flag.String("status", "", "Disable or Enable the WAF. A disabled WAF will not block any traffic, also disabling a WAF does not change rule statuses on its configure policy. ")
-	flag.Parse()
-
-	//check for empty args
-	switch {
-	case *domain == "" && *serviceID == "":
-		fmt.Println("A domain or service ID is required!")
-		flag.PrintDefaults()
-		os.Exit(1)
-	case *apiKey == "":
-		fmt.Println("API Key is required!")
-		flag.PrintDefaults()
-		os.Exit(1)
-	case *configFile == "":
-		fmt.Println("Config File is required!")
-		flag.PrintDefaults()
-		os.Exit(1)
-	}
+func main() {
+	kingpin.MustParse(app.Parse(os.Args[1:]))
 
 	const logo = `
        _.--------._
@@ -2072,57 +2040,32 @@ func main() {
 
 	fmt.Println("Fastly WAF Control Tool version: " + version + " built on " + date + " by #team-soc")
 
+	if *domain == "" && *serviceID == "" {
+		fmt.Println("A domain or service ID is required!")
+		os.Exit(1)
+	}
+
 	//run init to get our logging configured
 	var config TOMLConfig
 	config = Init(*configFile)
 
 	config.APIEndpoint = *apiEndpoint
 
-	//check if rule action was set on CLI, also check if is the correct status
-	if *Action != "" {
-		config.Action = ""
-		config.Action = *Action
-
-		switch {
-		case strings.ToLower(*Action) == "block":
-			config.Action = ""
-			config.Action = *Action
-			Info.Println("using rule action set by CLI: ", *Action)
-		case strings.ToLower(*Action) == "log":
-			config.Action = ""
-			config.Action = *Action
-			Info.Println("using rule action set by CLI: ", *Action)
-		case strings.ToLower(*Action) == "disabled":
-			config.Action = ""
-			config.Action = *Action
-			Info.Println("using rule action set by CLI: ", *Action)
-		default:
-			Error.Println("incorrect rule action provided: " + config.Action + " expecting \"disabled\", or \"block\", or \"log\"")
-			flag.PrintDefaults()
-			os.Exit(1)
-		}
+	//check if rule action was set on CLI
+	if *action != "" {
+		config.Action = *action
+		Info.Println("using rule action set by CLI: ", *action)
 	}
 
-	//check status rule action was set on CLI, also check if is the correct status
-	if *Status != "" {
-
-		switch {
-		case strings.ToLower(*Status) == "enable":
-			Info.Println("using rule action set by CLI: ", *Action)
-		case strings.ToLower(*Status) == "disable":
-			Info.Println("using rule action set by CLI: ", *Action)
-		default:
-			Error.Println("incorrect status provided: " + config.Action + " expecting \"enable\", or \"disable\"")
-			flag.PrintDefaults()
-			os.Exit(1)
-		}
+	//check status rule action was set on CLI
+	if *status != "" {
+		Info.Println("using rule status set by CLI: ", *status)
 	}
 
 	//if rules are passed via CLI parse them and replace config parameters
-	if Rules != "" {
-		config.Rules = nil
+	if *rules != "" {
 		Info.Println("using rule IDS set by CLI:")
-		ruleIDs := strings.Split(Rules, ",")
+		ruleIDs := strings.Split(*rules, ",")
 		for _, id := range ruleIDs {
 			//cast IDs from string to int
 			i, _ := strconv.ParseInt(id, 10, 32)
@@ -2133,10 +2076,9 @@ func main() {
 	}
 
 	//if rule tags are passed via CLI parse them and replace config parameters
-	if Tags != "" {
-		config.Tags = nil
+	if *tags != "" {
 		Info.Println("using tags set by CLI:")
-		tags := strings.Split(Tags, ",")
+		tags := strings.Split(*tags, ",")
 		for _, tag := range tags {
 			Info.Println(" - tag name: ", tag)
 			config.Tags = append(config.Tags, tag)
@@ -2144,19 +2086,13 @@ func main() {
 	}
 
 	//if rule publisher is passed via CLI parse them and replace config parameters
-	if Publishers != "" {
-		config.Publisher = nil
+	if *publishers != "" {
 		Info.Println("using publisher set by CLI:")
-		publishers := strings.Split(Publishers, ",")
+		publishers := strings.Split(*publishers, ",")
 		for _, publisher := range publishers {
 			Info.Println(" - publisher name: ", publisher)
 			config.Publisher = append(config.Publisher, publisher)
 		}
-	}
-
-	//if rule action is passed via CLI parse them and replace config parameters
-	if *Action != "" {
-		config.Action = *Action
 	}
 
 	//get service ID
@@ -2186,7 +2122,7 @@ func main() {
 	activeVersion := getActiveVersion(*client, *serviceID, *apiKey, config)
 
 	// add logs only to a service
-	if *LogOnly {
+	if *logOnly {
 
 		Info.Println("Adding logging endpoints only")
 
@@ -2207,13 +2143,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		if *WithShielding {
+		if *withShielding {
 			Info.Printf("WAF enabled with Shielding, adding logging condition")
 			WithShieldingCondition(*client, *serviceID, version, config)
 		}
 
-		if *WithPX {
-			Info.Printf("WAF enabled with PerimterX, adding logging condition")
+		if *withPX {
+			Info.Printf("WAF enabled with PerimeterX, adding logging condition")
 			WithPXCondition(*client, *serviceID, version, config)
 		}
 
@@ -2224,7 +2160,7 @@ func main() {
 
 	}
 	// check if is a de-provisioning call
-	if *Deprovision {
+	if *deprovision {
 		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
@@ -2240,7 +2176,7 @@ func main() {
 	}
 
 	// check if is a delete logs parameter was called
-	if *DeleteLogs {
+	if *deleteLogs {
 
 		//clone current version
 		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
@@ -2280,43 +2216,43 @@ func main() {
 			switch {
 
 			//list configuration sets rules
-			case *ListConfigSet:
+			case *listConfigSet:
 				Info.Printf("Listing all configuration sets")
 				getConfigurationSets(config.APIEndpoint, *apiKey)
 				Info.Println("Completed")
 				os.Exit(1)
 
 			//list waf rules
-			case *ListRules:
+			case *listRules:
 				Info.Printf("Listing all rules for WAF ID: %s", waf.ID)
 				getRules(config.APIEndpoint, *apiKey, *serviceID, waf.ID)
 				Info.Println("Completed")
 				os.Exit(1)
 
 			//list all rules for a given configset
-			case *ListAllRules != "":
-				Info.Printf("Listing all rules under configuration set ID: %s", *ListAllRules)
-				ConfigID := *ListAllRules
+			case *listAllRules != "":
+				Info.Printf("Listing all rules under configuration set ID: %s", *listAllRules)
+				ConfigID := *listAllRules
 				getAllRules(config.APIEndpoint, *apiKey, ConfigID)
 				Info.Println("Completed")
 				os.Exit(1)
 
 			//change a configuration set
-			case *ConfigurationSet != "":
-				Info.Printf("Changing Configuration Set to: %s", *ConfigurationSet)
-				ConfigID := *ConfigurationSet
+			case *configurationSet != "":
+				Info.Printf("Changing Configuration Set to: %s", *configurationSet)
+				ConfigID := *configurationSet
 				setConfigurationSet(waf.ID, ConfigID, *client)
 				Info.Println("Completed")
 				os.Exit(1)
 
-			case *Status != "":
+			case *status != "":
 				Info.Println("Changing WAF Status")
 				//rule management
-				changeStatus(config.APIEndpoint, *apiKey, waf.ID, *Status)
+				changeStatus(config.APIEndpoint, *apiKey, waf.ID, *status)
 				Info.Println("Completed")
 				os.Exit(1)
 
-			case Tags != "":
+			case *tags != "":
 				Info.Println("Editing Tags")
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
@@ -2329,7 +2265,7 @@ func main() {
 					Error.Printf("Issue patching ruleset see above error..")
 				}
 
-			case Publishers != "":
+			case *publishers != "":
 				Info.Println("Editing Publishers")
 				//Publisher management
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
@@ -2342,7 +2278,7 @@ func main() {
 					Error.Printf("Issue patching ruleset see above error..")
 				}
 
-			case Rules != "":
+			case *rules != "":
 				Info.Println("Editing Rules")
 				//rule management
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
@@ -2355,7 +2291,7 @@ func main() {
 					Error.Printf("Issue patching ruleset see above error..")
 				}
 
-			case *EditOWASP:
+			case *editOWASP:
 				Info.Printf("Editing OWASP settings for WAF #%v", index+1)
 				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
 
@@ -2367,24 +2303,24 @@ func main() {
 					Error.Printf("Issue patching ruleset see above error..")
 				}
 
-			case *WithPX:
-				Info.Printf("WAF enabled with PerimterX, adding logging condition")
+			case *withPX:
+				Info.Printf("WAF enabled with PerimeterX, adding logging condition")
 
 				//clone current version
 				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
 
 				WithPXCondition(*client, *serviceID, version, config)
 
-			case *WithShielding:
+			case *withShielding:
 				Info.Printf("WAF enabled with shielding, adding logging condition")
 
 				//clone current version
 				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
 
 				WithShieldingCondition(*client, *serviceID, version, config)
-        
+
 			//back up WAF rules locally
-			case *Backup:
+			case *backup:
 				Info.Printf("WAF Backups enabled")
 
 				//clone current version
@@ -2392,7 +2328,6 @@ func main() {
 
 				backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client)
 				//WithPXCondition(*client, *serviceID, version, config)
-
 
 			default:
 				//tags management
@@ -2443,11 +2378,10 @@ func main() {
 		Info.Printf("WAF enabled with shielding, adding logging condition")
 		WithShieldingCondition(*client, *serviceID, version, config)
 
-		if *WithPX {
-			Info.Printf("WAF enabled with PerimterX, adding logging condition")
+		if *withPX {
+			Info.Printf("WAF enabled with PerimeterX, adding logging condition")
 			WithPXCondition(*client, *serviceID, version, config)
 		}
-
 
 		latest, err := client.LatestVersion(&fastly.LatestVersionInput{
 			Service: *serviceID,
