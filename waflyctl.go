@@ -2015,7 +2015,7 @@ var (
 	serviceID        = app.Flag("serviceid", "Service ID to Provision.").String()
 	status           = app.Flag("status", "Disable or Enable the WAF. A disabled WAF will not block any traffic. In addition disabling a WAF does not change rule statuses on its configure policy. One of: disable, enable.").Enum("disable", "enable")
 	tags             = app.Flag("tags", "Which rules tags to add to the ruleset in a comma delimited fashion. Overwrites tags defined in config file. Example: wordpress,language-php,drupal.").String()
-	withPX           = app.Flag("with-perimeterx", "Enable if the customer has perimeterX enabled on the service as well as WAF. Helps fix null value logging.").Bool()
+	withPX           = app.Flag("with-perimeterx", "Enable if the customer has PerimeterX enabled on the service as well as WAF. Helps fix null value logging.").Bool()
 	withShielding    = app.Flag("with-shielding", "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.").Bool()
 )
 

@@ -51,7 +51,7 @@ Flags:
                              delimited fashion. Overwrites tags defined in
                              config file. Example:
                              wordpress,language-php,drupal.
-  --with-perimeterx          Enable if the customer has perimeterX enabled on
+  --with-perimeterx          Enable if the customer has PerimeterX enabled on
                              the service as well as WAF. Helps fix null value
                              logging.
   --with-shielding           Enable if the customer has shielding enabled on the

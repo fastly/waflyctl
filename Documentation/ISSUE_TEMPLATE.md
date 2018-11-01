@@ -3,10 +3,11 @@
 ## Overview
 
 1. OS name and version.
-2. GO version
-3. Description of the problem. What is happening that shouldn't?
-4. Description of the expected behaviour.
-5. Exact steps to reproduce the error.
+2. `go version` output
+3. `waflyctl --version` in recent releases or `brew info waflyctl` output.
+4. Description of the problem. What is happening that shouldn't?
+5. Description of the expected behaviour.
+6. Exact steps to reproduce the error.
 
 ## Additional Information:
 

@@ -4,7 +4,7 @@ Issues can be opened using github's tracker. You can see a explanation [here](ht
 Issues are for tracking broken functionality and are intended for managing development work to address these.
 
 If you have an issue with usage or need general assistance using this module,
-or Fastly in general please use the [support infomation](../README.md#support).
+or Fastly in general please use the [support information](../README.md#support).
 
 This describes what content should be added to a issue to help with an
 expedient resolution.
