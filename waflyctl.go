@@ -1,7 +1,10 @@
 /*
-WAF provisioning tool
-Author: @Enrique (enrique@fastly.com)
-*/
+ * WAF provisioning tool
+ *
+ * Copyright (c) 2018 Fastly Inc.
+
+ * Author: Jose Enrique Hernandez
+ */
 
 package main
 
