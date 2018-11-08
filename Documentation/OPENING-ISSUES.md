@@ -16,4 +16,3 @@ and address a problem in code. Where possible it should also indicate what
 steps have already been taken to address the issue and their result too.
 
 A report should be reproducible on a base install of waflyctl. 
-Please use the following [issue template]("Documentation/ISSUE_TEMPLATE.md") when creating issues. 
