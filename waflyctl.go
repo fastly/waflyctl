@@ -2378,8 +2378,10 @@ func main() {
 		//Default Disabled
 		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
 
-		Info.Printf("WAF enabled with shielding, adding logging condition")
-		WithShieldingCondition(*client, *serviceID, version, config)
+		if *withShielding {
+			Info.Printf("WAF enabled with Shielding, adding logging condition")
+			WithShieldingCondition(*client, *serviceID, version, config)
+		}
 
 		if *withPX {
 			Info.Printf("WAF enabled with PerimeterX, adding logging condition")
