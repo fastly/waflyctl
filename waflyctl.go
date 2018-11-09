@@ -524,7 +524,7 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		Info.Println("Created request logging endpoint: " + config.Weblog.Name)
 
 	case strings.Contains(err.Error(), "Duplicate record"):
-		// nothing
+		Info.Println("Request logging endpoint " + config.Weblog.Name + " already exists. Skipping.")
 
 	default:
 		fmt.Print(err)
@@ -547,11 +547,19 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		MessageType:   "blank",
 		Placement:     "waf_debug",
 	})
-	if err != nil {
+
+	switch {
+	case err == nil:
+		Info.Println("Created WAF logging endpoint: " + config.Waflog.Name)
+
+	case strings.Contains(err.Error(), "Duplicate record"):
+		Info.Println("WAF logging endpoint " + config.Waflog.Name + " already exists. Skipping.")
+
+	default:
 		fmt.Print(err)
 		return false
 	}
-	Info.Println("Created WAF logging endpoint: " + config.Waflog.Name)
+
 	return true
 }
 
