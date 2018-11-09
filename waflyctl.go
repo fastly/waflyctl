@@ -518,11 +518,18 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		FormatVersion: 2,
 		MessageType:   "blank",
 	})
-	if err != nil {
+
+	switch {
+	case err == nil:
+		Info.Println("Created request logging endpoint: " + config.Weblog.Name)
+
+	case strings.Contains(err.Error(), "Duplicate record"):
+		// nothing
+
+	default:
 		fmt.Print(err)
 		return false
 	}
-	Info.Println("Created request logging endpoint: " + config.Weblog.Name)
 
 	// create waf logging endpoint
 	_, err = client.CreateSyslog(&fastly.CreateSyslogInput{
