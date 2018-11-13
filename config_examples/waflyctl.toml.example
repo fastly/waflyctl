@@ -74,6 +74,6 @@ content = "403 Forbidden"
 
 [prefetch]
 name = "WAF_Prefetch"
-statement = "!req.backend.is_shield"
+statement = "req.backend.is_origin"
 type = "PREFETCH"
 priority = 10
