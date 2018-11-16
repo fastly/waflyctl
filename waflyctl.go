@@ -2028,6 +2028,7 @@ var (
 	listConfigSet    = app.Flag("list-configuration-sets", "List all configuration sets and their status.").Bool()
 	listRules        = app.Flag("list-rules", "List current WAF rules and their status.").Bool()
 	editOWASP        = app.Flag("owasp", "Edit the OWASP object base on the settings in the configuration file.").Bool()
+	provision        = app.Flag("provision", "Provisioning a new WAF or update an existing one.").Bool()
 	publishers       = app.Flag("publisher", "Which rule publisher to use in a comma delimited fashion. Overwrites publisher defined in config file. Choices are: owasp, trustwave, fastly").String()
 	rules            = app.Flag("rules", "Which rules to apply action on in a comma delimited fashion. Overwrites ruleid defined in config file. Example: 1010010,931100,931110.").String()
 	serviceID        = app.Flag("serviceid", "Service ID to Provision.").String()
@@ -2347,7 +2348,7 @@ func main() {
 				backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client)
 				//WithPXCondition(*client, *serviceID, version, config)
 
-			default:
+			case *provision:
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 				//rule management
@@ -2364,6 +2365,10 @@ func main() {
 				} else {
 					Error.Printf("Issue patching ruleset see above error..")
 				}
+
+			default:
+				Info.Println("Nothing to do. Exiting")
+				os.Exit(1)
 			}
 
 			//validate the config
@@ -2372,7 +2377,7 @@ func main() {
 			os.Exit(1)
 		}
 
-	} else {
+	} else if *provision {
 		Warning.Println("Provisioning a new WAF on Service ID: " + *serviceID)
 
 		//clone current version
@@ -2421,6 +2426,9 @@ func main() {
 		//validate the config
 		validateVersion(*client, *serviceID, latest.Number)
 		Info.Println("Completed")
+		os.Exit(1)
+	} else {
+		Info.Println("Nothing to do. Exiting")
 		os.Exit(1)
 	}
 
