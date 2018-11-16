@@ -472,7 +472,7 @@ func vclSnippet(serviceID, apiKey string, version int, config TOMLConfig) bool {
 	//check if it has already been created
 	for _, snippet := range body {
 		if snippet.Name == config.Vclsnippet.Name {
-			Warning.Println(config.Vclsnippet.Name + " already excists not creating a new one")
+			Warning.Println(config.Vclsnippet.Name + " already exists not creating a new one")
 			return false
 		}
 	}
