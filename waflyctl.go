@@ -2057,7 +2057,7 @@ func main() {
 
 	// grab version and build
 
-	fmt.Println("Fastly WAF Control Tool version: " + version + " built on " + date + " by #team-soc")
+	fmt.Println("Fastly WAF Control Tool version: " + version + " built on " + date)
 
 	if *domain == "" && *serviceID == "" {
 		fmt.Println("A domain or service ID is required!")
