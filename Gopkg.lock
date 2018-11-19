@@ -62,22 +62,22 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9e4d6e3da7f861d2baf76ecee7d4330652bb0174500c6874ddcc4f4cf87c40b1"
+  digest = "1:8aaca36a3c1321d429693dfbc629371a3ee52f2fa40c62d2341f31f0491dab2d"
   name = "github.com/sethvargo/go-fastly"
   packages = ["fastly"]
   pruneopts = "UT"
-  revision = "16e557cdd5fed48d0fd4f68b6360c900f9e2407a"
+  revision = "14a72781d679807d55d3ff6171bd53a101b6e712"
 
 [[projects]]
   branch = "master"
-  digest = "1:a412caf33b5d3c7938c28e1e745c10664bd180277b73ab3b34c0c467886f9969"
+  digest = "1:e56a91f64003cb1bf7fed334ba2615d9750991d4570d5254a7cdbeac3374d546"
   name = "golang.org/x/net"
   packages = [
     "idna",
     "publicsuffix",
   ]
   pruneopts = "UT"
-  revision = "4dfa2610cdf3b287375bbba5b8f2a14d3b01d8de"
+  revision = "adae6a3d119ae4890b46832a2e88a95adc62b8e7"
 
 [[projects]]
   digest = "1:a2ab62866c75542dd18d2b069fec854577a20211d7c0ea6ae746072a1dccdd18"
@@ -111,12 +111,12 @@
   version = "v2.2.6"
 
 [[projects]]
-  digest = "1:b7fc4c3fd91df516486f53cc86f4b55a0c815782dbe852c5a19cce8e6c577aac"
+  digest = "1:64241365fa95f35567976f0790ecfa85c9cb3d4131cc6d6cc7adb1cc6437159f"
   name = "gopkg.in/resty.v1"
   packages = ["."]
   pruneopts = "UT"
-  revision = "d4920dcf5b7689548a6db640278a9b35a5b48ec6"
-  version = "v1.9.1"
+  revision = "13ff84ebd5bdfa46a342d9edb869e21560a478f8"
+  version = "v1.10.2"
 
 [solve-meta]
   analyzer-name = "dep"
