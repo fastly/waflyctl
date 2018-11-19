@@ -2028,7 +2028,7 @@ var (
 	listConfigSet    = app.Flag("list-configuration-sets", "List all configuration sets and their status.").Bool()
 	listRules        = app.Flag("list-rules", "List current WAF rules and their status.").Bool()
 	editOWASP        = app.Flag("owasp", "Edit the OWASP object base on the settings in the configuration file.").Bool()
-	provision        = app.Flag("provision", "Provisioning a new WAF or update an existing one.").Bool()
+	provision        = app.Flag("provision", "Provision a new WAF or update an existing one.").Bool()
 	publishers       = app.Flag("publisher", "Which rule publisher to use in a comma delimited fashion. Overwrites publisher defined in config file. Choices are: owasp, trustwave, fastly").String()
 	rules            = app.Flag("rules", "Which rules to apply action on in a comma delimited fashion. Overwrites ruleid defined in config file. Example: 1010010,931100,931110.").String()
 	serviceID        = app.Flag("serviceid", "Service ID to Provision.").String()
