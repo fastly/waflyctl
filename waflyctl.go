@@ -2016,7 +2016,7 @@ var (
 	app              = kingpin.New("waflyctl", "Fastly WAF Control Tool").Version(version)
 	action           = app.Flag("action", "Action to take on the rules list and rule tags. Overwrites action defined in config file. One of: disabled, block, log.").Enum("disabled", "block", "log")
 	apiEndpoint      = app.Flag("apiendpoint", "Fastly API endpoint to use.").Default("https://api.fastly.com").String()
-	apiKey           = app.Flag("apikey", "API Key to use. Required.").Required().String()
+	apiKey           = app.Flag("apikey", "API Key to use. Required.").Envar("FASTLY_API_TOKEN").Required().String()
 	backup           = app.Flag("backup", "Store a copy of the WAF configuration in "+homeDir()+"/.waflyctl-<service-id>.rules.").Bool()
 	configFile       = app.Flag("config", "Location of configuration file for waflyctl.").Default(homeDir() + "/.waflyctl.toml").String()
 	configurationSet = app.Flag("configuration-set", "Changes WAF configuration set to the provided one.").String()
