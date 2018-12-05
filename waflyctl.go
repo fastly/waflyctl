@@ -14,18 +14,20 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/sethvargo/go-fastly/fastly"
-	"gopkg.in/alecthomas/kingpin.v2"
-	"gopkg.in/resty.v1"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/BurntSushi/toml"
+	"github.com/sethvargo/go-fastly/fastly"
+	"gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/resty.v1"
 )
 
 var (
@@ -1850,7 +1852,14 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 }
 
 // backupConfig function stores all rules, status, configuration set, and OWASP configuration locally
-func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client) bool {
+func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, bpath string) bool {
+
+	//validate the output path
+	d := filepath.Dir(bpath)
+	if _, err := os.Stat(d); os.IsNotExist(err) {
+		Error.Printf("Output path does not exist: %s", d)
+		return false
+	}
 
 	//get all rules and their status
 	//set our API call
@@ -1991,16 +2000,13 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 		return false
 	}
 
-	// make filename
-	filename := "waflyclt_" + serviceID + ".toml"
-
-	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
+	err = ioutil.WriteFile(bpath, buf.Bytes(), 0644)
 	if err != nil {
 		Error.Println(err)
 		return false
 	}
 
-	Info.Printf("Bytes written: %d to %s\n", buf.Len(), filename)
+	Info.Printf("Bytes written: %d to %s\n", buf.Len(), bpath)
 	return true
 }
 
@@ -2017,7 +2023,8 @@ var (
 	action           = app.Flag("action", "Action to take on the rules list and rule tags. Overwrites action defined in config file. One of: disabled, block, log.").Enum("disabled", "block", "log")
 	apiEndpoint      = app.Flag("apiendpoint", "Fastly API endpoint to use.").Default("https://api.fastly.com").String()
 	apiKey           = app.Flag("apikey", "API Key to use. Required.").Envar("FASTLY_API_TOKEN").Required().String()
-	backup           = app.Flag("backup", "Store a copy of the WAF configuration in "+homeDir()+"/.waflyctl-<service-id>.rules.").Bool()
+	backup           = app.Flag("backup", "Store a copy of the WAF configuration locally.").Bool()
+	backupPath       = app.Flag("backup-path", "Location for the WAF configuration backup file.").Default(homeDir() + "/waflyctl-backup-<service-id>.toml").String()
 	configFile       = app.Flag("config", "Location of configuration file for waflyctl.").Default(homeDir() + "/.waflyctl.toml").String()
 	configurationSet = app.Flag("configuration-set", "Changes WAF configuration set to the provided one.").String()
 	deprovision      = app.Flag("delete", "Remove a WAF configuration created with waflyctl.").Bool()
@@ -2217,7 +2224,8 @@ func main() {
 	//enable the WAF feature if is not already on
 	checkWAF(*apiKey, config.APIEndpoint)
 
-	Info.Printf("currently working with config version: %v.\n*Note Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version*", activeVersion)
+	Info.Printf("currently working with config version: %v.", activeVersion)
+	Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
 	wafs, err := client.ListWAFs(&fastly.ListWAFsInput{
 		Service: *serviceID,
 		Version: activeVersion,
@@ -2340,13 +2348,13 @@ func main() {
 
 			//back up WAF rules locally
 			case *backup:
-				Info.Printf("WAF Backups enabled")
+				Info.Printf("Backing up WAF configuration")
 
-				//clone current version
-				//_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+				bp := strings.Replace(*backupPath, "<service-id>", *serviceID, -1)
 
-				backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client)
-				//WithPXCondition(*client, *serviceID, version, config)
+				if !backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client, bp) {
+					os.Exit(1)
+				}
 
 			case *provision:
 				//tags management
@@ -2374,7 +2382,7 @@ func main() {
 			//validate the config
 			validateVersion(*client, *serviceID, activeVersion)
 			Info.Println("Completed")
-			os.Exit(1)
+			os.Exit(0)
 		}
 
 	} else if *provision {

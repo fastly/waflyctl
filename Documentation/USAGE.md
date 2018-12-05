@@ -16,8 +16,9 @@ Flags:
   --apiendpoint="https://api.fastly.com"
                              Fastly API endpoint to use.
   --apikey=APIKEY            API Key to use. Required.
-  --backup                   Store a copy of the WAF configuration in
-                             /Users/guest/.waflyctl-<service-id>.rules.
+  --backup                   Store a copy of the WAF configuration locally.
+  --backup-path="/Users/guest/waflyctl-backup-<service-id>.toml"
+                             Location for the WAF configuration backup file.
   --config="/Users/guest/.waflyctl.toml"
                              Location of configuration file for waflyctl.
   --configuration-set=CONFIGURATION-SET
