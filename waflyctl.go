@@ -2182,7 +2182,7 @@ func main() {
 		//validate the config
 		validateVersion(*client, *serviceID, version)
 		Info.Println("Completed")
-		os.Exit(1)
+		os.Exit(0)
 
 	}
 	// check if is a de-provisioning call
@@ -2193,7 +2193,7 @@ func main() {
 		if result {
 			Info.Printf("Successfully deleted WAF on Service ID %s. Do not forget to activate version %v!", *serviceID, version)
 			Info.Printf("Completed")
-			os.Exit(1)
+			os.Exit(0)
 		} else {
 			Error.Printf("Failed to delete WAF on Service ID %s..see above for details", *serviceID)
 			Info.Printf("Completed")
@@ -2213,7 +2213,7 @@ func main() {
 		if result {
 			Info.Printf("Successfully deleted logging endpint %s and %s in Service ID %s. Remember to activate version %v!", config.Weblog.Name, config.Waflog.Name, *serviceID, version)
 			Info.Printf("Completed")
-			os.Exit(1)
+			os.Exit(0)
 		} else {
 			Error.Printf("Failed to delete logging endpoints on Service ID %s..see above for details", *serviceID)
 			Info.Printf("Completed")
@@ -2247,14 +2247,14 @@ func main() {
 				Info.Printf("Listing all configuration sets")
 				getConfigurationSets(config.APIEndpoint, *apiKey)
 				Info.Println("Completed")
-				os.Exit(1)
+				os.Exit(0)
 
 			//list waf rules
 			case *listRules:
 				Info.Printf("Listing all rules for WAF ID: %s", waf.ID)
 				getRules(config.APIEndpoint, *apiKey, *serviceID, waf.ID)
 				Info.Println("Completed")
-				os.Exit(1)
+				os.Exit(0)
 
 			//list all rules for a given configset
 			case *listAllRules != "":
@@ -2262,7 +2262,7 @@ func main() {
 				ConfigID := *listAllRules
 				getAllRules(config.APIEndpoint, *apiKey, ConfigID)
 				Info.Println("Completed")
-				os.Exit(1)
+				os.Exit(0)
 
 			//change a configuration set
 			case *configurationSet != "":
@@ -2270,14 +2270,14 @@ func main() {
 				ConfigID := *configurationSet
 				setConfigurationSet(waf.ID, ConfigID, *client)
 				Info.Println("Completed")
-				os.Exit(1)
+				os.Exit(0)
 
 			case *status != "":
 				Info.Println("Changing WAF Status")
 				//rule management
 				changeStatus(config.APIEndpoint, *apiKey, waf.ID, *status)
 				Info.Println("Completed")
-				os.Exit(1)
+				os.Exit(0)
 
 			case *tags != "":
 				Info.Println("Editing Tags")
@@ -2376,7 +2376,7 @@ func main() {
 
 			default:
 				Info.Println("Nothing to do. Exiting")
-				os.Exit(1)
+				os.Exit(0)
 			}
 
 			//validate the config
@@ -2434,10 +2434,10 @@ func main() {
 		//validate the config
 		validateVersion(*client, *serviceID, latest.Number)
 		Info.Println("Completed")
-		os.Exit(1)
+		os.Exit(0)
 	} else {
 		Info.Println("Nothing to do. Exiting")
-		os.Exit(1)
+		os.Exit(0)
 	}
 
 }
