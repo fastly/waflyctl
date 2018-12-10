@@ -36,7 +36,7 @@ Flags:
   --list-rules               List current WAF rules and their status.
   --owasp                    Edit the OWASP object base on the settings in the
                              configuration file.
-  --provision                Provisioning a new WAF or update an existing one.
+  --provision                Provision a new WAF or update an existing one.
   --publisher=PUBLISHER      Which rule publisher to use in a comma delimited
                              fashion. Overwrites publisher defined in config
                              file. Choices are: owasp, trustwave, fastly
