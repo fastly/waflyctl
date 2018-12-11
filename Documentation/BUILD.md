@@ -10,3 +10,9 @@ go get github.com/BurntSushi/toml github.com/sethvargo/go-fastly/fastly \
 go build waflyctl.go
 ./waflyctl
 ```
+
+Centos Install:
+```
+yum -y install golang
+go get -v github.com/fastly/waflyctl
+```
