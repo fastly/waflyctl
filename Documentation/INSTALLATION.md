@@ -21,20 +21,12 @@ Alternatively, to use unreleased code from the master branch:
 brew install --HEAD fastly/tap/waflyctl
 ```
 
-# CentOS Installation
+# Other OS Installation
 
-Install go language package:
+Install Go: https://golang.org/doc/install
 
-```
-yum -y install golang
-```
 
-Create go environment variables in your `.bashrc`:
-```
-echo 'export GOPATH=/path/to/whereveryouwant/' >> ~/.bashrc
-echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
-```
-Download, install waflyctl + dependencies:
+Download, install, build waflyctl + dependencies:
 
 ```
 go get -v github.com/fastly/waflyctl
