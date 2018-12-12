@@ -2375,8 +2375,8 @@ func main() {
 				}
 
 			default:
-				Info.Println("Nothing to do. Exiting")
-				os.Exit(0)
+				Error.Println("Nothing to do. Exiting")
+				os.Exit(1)
 			}
 
 			//validate the config
@@ -2436,8 +2436,8 @@ func main() {
 		Info.Println("Completed")
 		os.Exit(0)
 	} else {
-		Info.Println("Nothing to do. Exiting")
-		os.Exit(0)
+		Error.Println("Nothing to do. Exiting")
+		os.Exit(1)
 	}
 
 }
