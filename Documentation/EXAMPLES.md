@@ -17,8 +17,6 @@ Replace <service_id> and <configuration_set_id> where appropriate.
 ## Only edit OWASP object base on what it is set on the config file
 `waflyctl --apikey $FASTLY_TOKEN --domain myexample.com --owasp`
 
-## Disable a WAF, stop it for blocking traffic if something goes horribly wrong
-
 ## Listing all configuration sets available on the fastly platform
 `waflyctl --apikey $FASTLY_TOKEN --serviceid <service_id> --list-configuration-sets`
 
