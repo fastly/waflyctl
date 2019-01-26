@@ -11,7 +11,7 @@ before_script:
 script:
   - dep ensure 
   - go vet 
-  - staticcheck
+  - staticcheck -fail=-U1000
   - golint -set_exit_status
 
 deploy:
