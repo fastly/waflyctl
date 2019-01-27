@@ -34,9 +34,6 @@ var (
 	//logging variables
 	logFile string
 
-	//Trace level logging NOT USED
-	Trace *log.Logger
-
 	//Info level logging
 	Info *log.Logger
 
@@ -49,9 +46,6 @@ var (
 	// version number
 	version = "dev"
 	date    = "unknown"
-
-	//HOMEDIRECTORY static variable
-	HOMEDIRECTORY string
 )
 
 // TOMLConfig is the applications config file
@@ -327,8 +321,6 @@ func Init(configFile string) TOMLConfig {
 
 func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig) int {
 
-	var activeVersion int
-
 	//get version list
 	apiCall := config.APIEndpoint + "/service/" + serviceID
 	resp, err := resty.R().
@@ -348,9 +340,8 @@ func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOM
 
 	//find the active version
 	for _, version := range body.Versions {
-		if version.Active == true {
-			activeVersion = version.Number
-			return activeVersion
+		if version.Active {
+			return version.Number
 		}
 	}
 
@@ -563,21 +554,6 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 	}
 
 	return true
-}
-
-// FindCustomerID retrives a customerID using the Fastly API
-func FindCustomerID(client fastly.Client, serviceID string) string {
-
-	//have client return the service Info
-	serviceInfo, err := client.GetService(&fastly.GetServiceInput{
-		ID: serviceID,
-	})
-	if err != nil {
-		Error.Printf("could not find a customer ID for service: %v", serviceID)
-		os.Exit(1)
-
-	}
-	return serviceInfo.CustomerID
 }
 
 func checkWAF(apiKey, apiEndpoint string) bool {
@@ -2072,8 +2048,7 @@ func main() {
 	}
 
 	//run init to get our logging configured
-	var config TOMLConfig
-	config = Init(*configFile)
+	config := Init(*configFile)
 
 	config.APIEndpoint = *apiEndpoint
 
