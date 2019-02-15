@@ -1867,6 +1867,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	result.page = append(result.page, body)
 
 	currentpage := body.Meta.CurrentPage
+	perpage := body.Meta.PerPage
 	totalpages := body.Meta.TotalPages
 
 	Info.Printf("Backing up %d rules", body.Meta.RecordCount)
@@ -1876,7 +1877,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 
 		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 		//set our API call
-		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[size]=200&page[number]=" + strconv.Itoa(currentpage)
+		apiCall := fmt.Sprintf("%s/service/%s/wafs/%s/rule_statuses?page[size]=%d&page[number]=%d", apiEndpoint, serviceID, wafID, perpage, currentpage)
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
