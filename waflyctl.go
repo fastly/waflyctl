@@ -77,32 +77,33 @@ type Backup struct {
 }
 
 type owaspSettings struct {
-	AllowedHTTPVersions           string
-	AllowedMethods                string
-	AllowedRequestContentType     string
-	ArgLength                     int
-	ArgNameLength                 int
-	CombinedFileSizes             int
-	CriticalAnomalyScore          int
-	CRSValidateUTF8Encoding       bool
-	ErrorAnomalyScore             int
-	HTTPViolationScoreThreshold   int
-	InboundAnomalyScoreThreshold  int
-	LFIScoreThreshold             int
-	MaxFileSize                   int
-	MaxNumArgs                    int
-	NoticeAnomalyScore            int
-	ParanoiaLevel                 int
-	PHPInjectionScoreThreshold    int
-	RCEScoreThreshold             int
-	RestrictedExtensions          string
-	RestrictedHeaders             string
-	RFIScoreThreshold             int
-	SessionFixationScoreThreshold int
-	SQLInjectionScoreThreshold    int
-	XSSScoreThreshold             int
-	TotalArgLength                int
-	WarningAnomalyScore           int
+	AllowedHTTPVersions              string
+	AllowedMethods                   string
+	AllowedRequestContentType        string
+	AllowedRequestContentTypeCharset string
+	ArgLength                        int
+	ArgNameLength                    int
+	CombinedFileSizes                int
+	CriticalAnomalyScore             int
+	CRSValidateUTF8Encoding          bool
+	ErrorAnomalyScore                int
+	HTTPViolationScoreThreshold      int
+	InboundAnomalyScoreThreshold     int
+	LFIScoreThreshold                int
+	MaxFileSize                      int
+	MaxNumArgs                       int
+	NoticeAnomalyScore               int
+	ParanoiaLevel                    int
+	PHPInjectionScoreThreshold       int
+	RCEScoreThreshold                int
+	RestrictedExtensions             string
+	RestrictedHeaders                string
+	RFIScoreThreshold                int
+	SessionFixationScoreThreshold    int
+	SQLInjectionScoreThreshold       int
+	XSSScoreThreshold                int
+	TotalArgLength                   int
+	WarningAnomalyScore              int
 }
 
 // WeblogSettings parameters for logs in config file
@@ -539,35 +540,36 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 		created = true
 	}
 	owasp, err = client.UpdateOWASP(&fastly.UpdateOWASPInput{
-		Service:                       serviceID,
-		ID:                            wafID,
-		OWASPID:                       owasp.ID,
-		AllowedHTTPVersions:           config.Owasp.AllowedHTTPVersions,
-		AllowedMethods:                config.Owasp.AllowedMethods,
-		AllowedRequestContentType:     config.Owasp.AllowedRequestContentType,
-		ArgLength:                     config.Owasp.ArgLength,
-		ArgNameLength:                 config.Owasp.ArgNameLength,
-		CombinedFileSizes:             config.Owasp.CombinedFileSizes,
-		CriticalAnomalyScore:          config.Owasp.CriticalAnomalyScore,
-		CRSValidateUTF8Encoding:       config.Owasp.CRSValidateUTF8Encoding,
-		ErrorAnomalyScore:             config.Owasp.ErrorAnomalyScore,
-		HTTPViolationScoreThreshold:   config.Owasp.HTTPViolationScoreThreshold,
-		InboundAnomalyScoreThreshold:  config.Owasp.InboundAnomalyScoreThreshold,
-		LFIScoreThreshold:             config.Owasp.LFIScoreThreshold,
-		MaxFileSize:                   config.Owasp.MaxFileSize,
-		MaxNumArgs:                    config.Owasp.MaxNumArgs,
-		NoticeAnomalyScore:            config.Owasp.NoticeAnomalyScore,
-		ParanoiaLevel:                 config.Owasp.ParanoiaLevel,
-		PHPInjectionScoreThreshold:    config.Owasp.PHPInjectionScoreThreshold,
-		RCEScoreThreshold:             config.Owasp.RCEScoreThreshold,
-		RestrictedExtensions:          config.Owasp.RestrictedExtensions,
-		RestrictedHeaders:             config.Owasp.RestrictedHeaders,
-		RFIScoreThreshold:             config.Owasp.RFIScoreThreshold,
-		SessionFixationScoreThreshold: config.Owasp.SessionFixationScoreThreshold,
-		SQLInjectionScoreThreshold:    config.Owasp.SQLInjectionScoreThreshold,
-		XSSScoreThreshold:             config.Owasp.XSSScoreThreshold,
-		TotalArgLength:                config.Owasp.TotalArgLength,
-		WarningAnomalyScore:           config.Owasp.WarningAnomalyScore,
+		Service:                          serviceID,
+		ID:                               wafID,
+		OWASPID:                          owasp.ID,
+		AllowedHTTPVersions:              config.Owasp.AllowedHTTPVersions,
+		AllowedMethods:                   config.Owasp.AllowedMethods,
+		AllowedRequestContentType:        config.Owasp.AllowedRequestContentType,
+		AllowedRequestContentTypeCharset: config.Owasp.AllowedRequestContentTypeCharset,
+		ArgLength:                        config.Owasp.ArgLength,
+		ArgNameLength:                    config.Owasp.ArgNameLength,
+		CombinedFileSizes:                config.Owasp.CombinedFileSizes,
+		CriticalAnomalyScore:             config.Owasp.CriticalAnomalyScore,
+		CRSValidateUTF8Encoding:          config.Owasp.CRSValidateUTF8Encoding,
+		ErrorAnomalyScore:                config.Owasp.ErrorAnomalyScore,
+		HTTPViolationScoreThreshold:      config.Owasp.HTTPViolationScoreThreshold,
+		InboundAnomalyScoreThreshold:     config.Owasp.InboundAnomalyScoreThreshold,
+		LFIScoreThreshold:                config.Owasp.LFIScoreThreshold,
+		MaxFileSize:                      config.Owasp.MaxFileSize,
+		MaxNumArgs:                       config.Owasp.MaxNumArgs,
+		NoticeAnomalyScore:               config.Owasp.NoticeAnomalyScore,
+		ParanoiaLevel:                    config.Owasp.ParanoiaLevel,
+		PHPInjectionScoreThreshold:       config.Owasp.PHPInjectionScoreThreshold,
+		RCEScoreThreshold:                config.Owasp.RCEScoreThreshold,
+		RestrictedExtensions:             config.Owasp.RestrictedExtensions,
+		RestrictedHeaders:                config.Owasp.RestrictedHeaders,
+		RFIScoreThreshold:                config.Owasp.RFIScoreThreshold,
+		SessionFixationScoreThreshold:    config.Owasp.SessionFixationScoreThreshold,
+		SQLInjectionScoreThreshold:       config.Owasp.SQLInjectionScoreThreshold,
+		XSSScoreThreshold:                config.Owasp.XSSScoreThreshold,
+		TotalArgLength:                   config.Owasp.TotalArgLength,
+		WarningAnomalyScore:              config.Owasp.WarningAnomalyScore,
 	})
 	if err != nil {
 		Error.Fatalf("%v\n", err)
@@ -580,6 +582,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 	Info.Println(" - AllowedHTTPVersions:", owasp.AllowedHTTPVersions)
 	Info.Println(" - AllowedMethods:", owasp.AllowedMethods)
 	Info.Println(" - AllowedRequestContentType:", owasp.AllowedRequestContentType)
+	Info.Println(" - AllowedRequestContentTypeCharset:", owasp.AllowedRequestContentTypeCharset)
 	Info.Println(" - ArgLength:", owasp.ArgLength)
 	Info.Println(" - ArgNameLength:", owasp.ArgNameLength)
 	Info.Println(" - CombinedFileSizes:", owasp.CombinedFileSizes)
@@ -1741,32 +1744,33 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	}
 
 	o := owaspSettings{
-		AllowedHTTPVersions:           owasp.AllowedHTTPVersions,
-		AllowedMethods:                owasp.AllowedMethods,
-		AllowedRequestContentType:     owasp.AllowedRequestContentType,
-		ArgLength:                     owasp.ArgLength,
-		ArgNameLength:                 owasp.ArgNameLength,
-		CombinedFileSizes:             owasp.CombinedFileSizes,
-		CriticalAnomalyScore:          owasp.CriticalAnomalyScore,
-		CRSValidateUTF8Encoding:       owasp.CRSValidateUTF8Encoding,
-		ErrorAnomalyScore:             owasp.ErrorAnomalyScore,
-		HTTPViolationScoreThreshold:   owasp.HTTPViolationScoreThreshold,
-		InboundAnomalyScoreThreshold:  owasp.InboundAnomalyScoreThreshold,
-		LFIScoreThreshold:             owasp.LFIScoreThreshold,
-		MaxFileSize:                   owasp.MaxFileSize,
-		MaxNumArgs:                    owasp.MaxNumArgs,
-		NoticeAnomalyScore:            owasp.NoticeAnomalyScore,
-		ParanoiaLevel:                 owasp.ParanoiaLevel,
-		PHPInjectionScoreThreshold:    owasp.PHPInjectionScoreThreshold,
-		RCEScoreThreshold:             owasp.RCEScoreThreshold,
-		RestrictedExtensions:          owasp.RestrictedExtensions,
-		RestrictedHeaders:             owasp.RestrictedHeaders,
-		RFIScoreThreshold:             owasp.RFIScoreThreshold,
-		SessionFixationScoreThreshold: owasp.SessionFixationScoreThreshold,
-		SQLInjectionScoreThreshold:    owasp.SQLInjectionScoreThreshold,
-		XSSScoreThreshold:             owasp.XSSScoreThreshold,
-		TotalArgLength:                owasp.TotalArgLength,
-		WarningAnomalyScore:           owasp.WarningAnomalyScore,
+		AllowedHTTPVersions:              owasp.AllowedHTTPVersions,
+		AllowedMethods:                   owasp.AllowedMethods,
+		AllowedRequestContentType:        owasp.AllowedRequestContentType,
+		AllowedRequestContentTypeCharset: owasp.AllowedRequestContentTypeCharset,
+		ArgLength:                        owasp.ArgLength,
+		ArgNameLength:                    owasp.ArgNameLength,
+		CombinedFileSizes:                owasp.CombinedFileSizes,
+		CriticalAnomalyScore:             owasp.CriticalAnomalyScore,
+		CRSValidateUTF8Encoding:          owasp.CRSValidateUTF8Encoding,
+		ErrorAnomalyScore:                owasp.ErrorAnomalyScore,
+		HTTPViolationScoreThreshold:      owasp.HTTPViolationScoreThreshold,
+		InboundAnomalyScoreThreshold:     owasp.InboundAnomalyScoreThreshold,
+		LFIScoreThreshold:                owasp.LFIScoreThreshold,
+		MaxFileSize:                      owasp.MaxFileSize,
+		MaxNumArgs:                       owasp.MaxNumArgs,
+		NoticeAnomalyScore:               owasp.NoticeAnomalyScore,
+		ParanoiaLevel:                    owasp.ParanoiaLevel,
+		PHPInjectionScoreThreshold:       owasp.PHPInjectionScoreThreshold,
+		RCEScoreThreshold:                owasp.RCEScoreThreshold,
+		RestrictedExtensions:             owasp.RestrictedExtensions,
+		RestrictedHeaders:                owasp.RestrictedHeaders,
+		RFIScoreThreshold:                owasp.RFIScoreThreshold,
+		SessionFixationScoreThreshold:    owasp.SessionFixationScoreThreshold,
+		SQLInjectionScoreThreshold:       owasp.SQLInjectionScoreThreshold,
+		XSSScoreThreshold:                owasp.XSSScoreThreshold,
+		TotalArgLength:                   owasp.TotalArgLength,
+		WarningAnomalyScore:              owasp.WarningAnomalyScore,
 	}
 
 	//create a hash
