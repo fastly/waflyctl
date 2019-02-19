@@ -857,7 +857,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 
 		//remove WAF Response Object
 		Info.Printf("Deleting WAF #%v Response Condition", index+1)
-		client.DeleteResponseObject(&fastly.DeleteResponseObjectInput{
+		err = client.DeleteResponseObject(&fastly.DeleteResponseObjectInput{
 			Service: serviceID,
 			Version: version,
 			Name:    "WAF_Response",
