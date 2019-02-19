@@ -1635,9 +1635,9 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 }
 
 // getAllRules function lists all the rules with in the Fastly API
-func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
+func getAllRules(apiEndpoint, apiKey, configID string) bool {
 
-	if ConfigID == "" {
+	if configID == "" {
 		//set our API call
 		apiCall := apiEndpoint + "/wafs/rules?page[number]=1"
 
@@ -1731,7 +1731,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 	} else {
 
 		//set our API call
-		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[number]=1"
+		apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + configID + "&page[number]=1"
 
 		resp, err := resty.R().
 			SetHeader("Accept", "application/vnd.api+json").
@@ -1768,7 +1768,7 @@ func getAllRules(apiEndpoint, apiKey, ConfigID string) bool {
 
 			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
 			//set our API call
-			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + ConfigID + "&page[number]=" + strconv.Itoa(currentpage)
+			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + configID + "&page[number]=" + strconv.Itoa(currentpage)
 
 			resp, err := resty.R().
 				SetHeader("Accept", "application/vnd.api+json").
@@ -2235,16 +2235,16 @@ func main() {
 			//list all rules for a given configset
 			case *listAllRules != "":
 				Info.Printf("Listing all rules under configuration set ID: %s", *listAllRules)
-				ConfigID := *listAllRules
-				getAllRules(config.APIEndpoint, *apiKey, ConfigID)
+				configID := *listAllRules
+				getAllRules(config.APIEndpoint, *apiKey, configID)
 				Info.Println("Completed")
 				os.Exit(0)
 
 			//change a configuration set
 			case *configurationSet != "":
 				Info.Printf("Changing Configuration Set to: %s", *configurationSet)
-				ConfigID := *configurationSet
-				setConfigurationSet(waf.ID, ConfigID, *client)
+				configID := *configurationSet
+				setConfigurationSet(waf.ID, configID, *client)
 				Info.Println("Completed")
 				os.Exit(0)
 
