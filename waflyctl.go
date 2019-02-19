@@ -176,13 +176,6 @@ type PrefetchSettings struct {
 	Priority  int
 }
 
-// Service information from Fastly API
-type Service struct {
-	DomainName    string `json:"domain_name"`
-	ServiceID     string `json:"service_id"`
-	ActiveVersion int    `json:"active_version"`
-}
-
 // RuleList contains list of rules
 type RuleList struct {
 	Data  []Rule
@@ -842,40 +835,6 @@ func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLCon
 	}
 
 	return wafID
-}
-
-// FindServiceID retrives a SID using the Fastly API
-func FindServiceID(domain, apiKey, apiEndpoint string) string {
-	//Finds the service ID of the provided domain to power other calls
-
-	//API Endpoint to call for domain searches
-	apiCall := apiEndpoint + "/admin/domain_search"
-
-	//make the call
-	resp, err := resty.R().
-		SetQueryString("domain_name="+domain).
-		SetHeader("Accept", "application/json").
-		SetHeader("Fastly-Key", apiKey).
-		Get(apiCall)
-
-	//check if we had an issue with our call
-	if err != nil {
-		Error.Println("Error with API call: ", err)
-		os.Exit(1)
-	}
-
-	//unmarshal the response and extract the service id
-	body := Service{}
-	json.Unmarshal([]byte(resp.String()), &body)
-
-	if body.ServiceID == "" {
-		Error.Println("Could not find the service ID for domain: " + domain + " please make sure it exists")
-		os.Exit(1)
-	}
-
-	Info.Println("Found service id: " + body.ServiceID + " for domain: " + domain)
-
-	return body.ServiceID
 }
 
 func validateVersion(client fastly.Client, serviceID string, version int) bool {
@@ -1894,14 +1853,13 @@ var (
 	app              = kingpin.New("waflyctl", "Fastly WAF Control Tool").Version(version)
 	action           = app.Flag("action", "Action to take on the rules list and rule tags. Overwrites action defined in config file. One of: disabled, block, log.").Enum("disabled", "block", "log")
 	apiEndpoint      = app.Flag("apiendpoint", "Fastly API endpoint to use.").Default("https://api.fastly.com").String()
-	apiKey           = app.Flag("apikey", "API Key to use. Required.").Envar("FASTLY_API_TOKEN").Required().String()
+	apiKey           = app.Flag("apikey", "API Key to use.").Envar("FASTLY_API_TOKEN").Required().String()
 	backup           = app.Flag("backup", "Store a copy of the WAF configuration locally.").Bool()
 	backupPath       = app.Flag("backup-path", "Location for the WAF configuration backup file.").Default(homeDir() + "/waflyctl-backup-<service-id>.toml").String()
 	configFile       = app.Flag("config", "Location of configuration file for waflyctl.").Default(homeDir() + "/.waflyctl.toml").String()
 	configurationSet = app.Flag("configuration-set", "Changes WAF configuration set to the provided one.").String()
 	deprovision      = app.Flag("delete", "Remove a WAF configuration created with waflyctl.").Bool()
 	deleteLogs       = app.Flag("delete-logs", "When set removes WAF logging configuration.").Bool()
-	domain           = app.Flag("domain", "Domain to Provision. You can use Service ID alternatively.").String()
 	logOnly          = app.Flag("enable-logs-only", "Add logging configuration only to the service. No other changes will be made. Can be used together with --with-perimeterx").Bool()
 	listAllRules     = app.Flag("list-all-rules", "List all rules available on the Fastly platform for a given configuration set.").PlaceHolder("CONFIGURATION-SET").String()
 	listConfigSet    = app.Flag("list-configuration-sets", "List all configuration sets and their status.").Bool()
@@ -1910,7 +1868,7 @@ var (
 	provision        = app.Flag("provision", "Provision a new WAF or update an existing one.").Bool()
 	publishers       = app.Flag("publisher", "Which rule publisher to use in a comma delimited fashion. Overwrites publisher defined in config file. Choices are: owasp, trustwave, fastly").String()
 	rules            = app.Flag("rules", "Which rules to apply action on in a comma delimited fashion. Overwrites ruleid defined in config file. Example: 1010010,931100,931110.").String()
-	serviceID        = app.Flag("serviceid", "Service ID to Provision.").String()
+	serviceID        = app.Flag("serviceid", "Service ID to Provision.").Required().String()
 	status           = app.Flag("status", "Disable or Enable the WAF. A disabled WAF will not block any traffic. In addition disabling a WAF does not change rule statuses on its configure policy. One of: disable, enable.").Enum("disable", "enable")
 	tags             = app.Flag("tags", "Which rules tags to add to the ruleset in a comma delimited fashion. Overwrites tags defined in config file. Example: wordpress,language-php,drupal.").String()
 	withPX           = app.Flag("with-perimeterx", "Enable if the customer has PerimeterX enabled on the service as well as WAF. Helps fix null value logging.").Bool()
@@ -1937,11 +1895,6 @@ func main() {
 	// grab version and build
 
 	fmt.Println("Fastly WAF Control Tool version: " + version + " built on " + date)
-
-	if *domain == "" && *serviceID == "" {
-		fmt.Println("A domain or service ID is required!")
-		os.Exit(1)
-	}
 
 	//run init to get our logging configured
 	config := Init(*configFile)
@@ -1992,10 +1945,6 @@ func main() {
 		}
 	}
 
-	//get service ID
-	if *serviceID == "" {
-		*serviceID = FindServiceID(*domain, *apiKey, config.APIEndpoint)
-	}
 	//create Fastly client
 	client, err := fastly.NewClientForEndpoint(*apiKey, config.APIEndpoint)
 	if err != nil {
