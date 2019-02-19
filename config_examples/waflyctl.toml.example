@@ -50,7 +50,7 @@ format = '''{\"type\":\"req\",\"service_id\":\"%{req.service_id}V\",\"request_id
 name = "waflogs"
 address = "address"
 port = 514
-format = '''{\"type\":\"waf\",\"request_id\":\"%{req.http.fastly-soc-x-request-id}V\",\"rule_id\":\"%{waf.rule_id}V\",\"severity\":\"%{waf.severity}V\",\"anomaly_score\":\"%{waf.anomaly_score}V\",\"logdata\":\"%{cstr_escape(waf.logdata)}V\",\"waf_message\":\"%{waf.message}V\"}'''
+format = '''{\"type\":\"waf\",\"request_id\":\"%{req.http.fastly-soc-x-request-id}V\",\"rule_id\":\"%{waf.rule_id}V\",\"severity\":\"%{waf.severity}V\",\"anomaly_score\":\"%{waf.anomaly_score}V\",\"logdata\":\"%{json.escape(waf.logdata)}V\",\"waf_message\":\"%{json.escape(waf.message)}V\"}'''
 
 
 [vclsnippet]
