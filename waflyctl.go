@@ -124,31 +124,6 @@ type VCLSnippetSettings struct {
 	Dynamic  int
 }
 
-// Version information from Fastly API
-type Version struct {
-	PublishKey string `json:"publish_key"`
-	Name       string `json:"name"`
-	Versions   []struct {
-		Testing   bool        `json:"testing"`
-		Locked    bool        `json:"locked"`
-		Number    int         `json:"number"`
-		Active    bool        `json:"active"`
-		ServiceID string      `json:"service_id"`
-		Staging   bool        `json:"staging"`
-		CreatedAt time.Time   `json:"created_at"`
-		DeletedAt interface{} `json:"deleted_at"`
-		Comment   string      `json:"comment"`
-		UpdatedAt time.Time   `json:"updated_at"`
-		Deployed  bool        `json:"deployed"`
-	} `json:"versions"`
-	DeletedAt  interface{} `json:"deleted_at"`
-	CreatedAt  time.Time   `json:"created_at"`
-	Comment    string      `json:"comment"`
-	CustomerID string      `json:"customer_id"`
-	UpdatedAt  time.Time   `json:"updated_at"`
-	ID         string      `json:"id"`
-}
-
 // WaflogSettings parameters from config
 type WaflogSettings struct {
 	Name        string
@@ -308,36 +283,21 @@ func Init(configFile string) TOMLConfig {
 }
 
 func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig) int {
-
-	//get version list
-	apiCall := config.APIEndpoint + "/service/" + serviceID
-	resp, err := resty.R().
-		SetHeader("Accept", "application/vnd.api+json").
-		SetHeader("Fastly-Key", apiKey).
-		Get(apiCall)
-
-	//check if we had an issue with our call
+	service, err := client.GetService(&fastly.GetServiceInput{
+		ID: serviceID,
+	})
 	if err != nil {
-		Error.Println("Error with API call: " + apiCall)
-		os.Exit(1)
+		Error.Fatalf("%v\n", err)
 	}
-
-	//unmarshal the response and extract the version list from response
-	body := Version{}
-	json.Unmarshal([]byte(resp.String()), &body)
-
-	//find the active version
-	for _, version := range body.Versions {
+	for _, version := range service.Versions {
 		if version.Active {
 			return version.Number
 		}
 	}
-
-	// return false if no active version is found
-	Error.Println("Found no active version on the service, service ID might be incorrect..exiting")
-	os.Exit(1)
+	Error.Fatal("Found no active version on the service, service ID might be incorrect..exiting")
 	return 0
 }
+
 func cloneVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig, activeVersion int) (bool, int) {
 
 	Info.Printf("cloning current service version #%v", activeVersion)
