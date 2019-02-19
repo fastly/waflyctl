@@ -183,11 +183,6 @@ type Service struct {
 	ActiveVersion int    `json:"active_version"`
 }
 
-// Features from Fastly API
-type Features struct {
-	Features []string `json:"features"`
-}
-
 // RuleList contains list of rules
 type RuleList struct {
 	Data  []Rule
@@ -554,35 +549,6 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 	}
 
 	return true
-}
-
-func checkWAF(apiKey, apiEndpoint string) bool {
-	apiCall := apiEndpoint + "/verify"
-
-	resp, err := resty.R().
-		SetHeader("Accept", "application/vnd.api+json").
-		SetHeader("Fastly-Key", apiKey).
-		SetHeader("Content-Type", "application/vnd.api+json").
-		Get(apiCall)
-
-	if err != nil {
-		Error.Fatal(err)
-		return false
-	}
-
-	//unmarshal the response and extract the service id
-	body := Features{}
-	json.Unmarshal([]byte(resp.String()), &body)
-
-	for _, feature := range body.Features {
-		if feature == "waf" {
-			Info.Printf("WAF Featured Enabled")
-			return true
-		}
-	}
-	Error.Printf("WAF Featured NOT Enabled on Account. Please contact Fastly at support@fastly.com")
-	os.Exit(1)
-	return false
 }
 
 func wafContainer(client fastly.Client, serviceID string, version int, config TOMLConfig) (bool, string) {
@@ -2196,9 +2162,6 @@ func main() {
 			os.Exit(1)
 		}
 	}
-
-	//enable the WAF feature if is not already on
-	checkWAF(*apiKey, config.APIEndpoint)
 
 	Info.Printf("currently working with config version: %v.", activeVersion)
 	Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
