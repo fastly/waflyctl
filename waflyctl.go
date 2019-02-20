@@ -283,19 +283,19 @@ func Init(configFile string) TOMLConfig {
 	return config
 }
 
-func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig) int {
+func getActiveVersion(client fastly.Client, serviceID string, config TOMLConfig) int {
 	service, err := client.GetService(&fastly.GetServiceInput{
 		ID: serviceID,
 	})
 	if err != nil {
-		Error.Fatalf("%v\n", err)
+		Error.Fatalf("Cannot get service %q: GetService: %v\n", serviceID, err)
 	}
 	for _, version := range service.Versions {
 		if version.Active {
 			return version.Number
 		}
 	}
-	Error.Fatal("Found no active version on the service, service ID might be incorrect..exiting")
+	Error.Fatal("No active version found (wrong service id?). Aborting")
 	return 0
 }
 
@@ -1915,21 +1915,8 @@ func main() {
 		Error.Fatal(err)
 	}
 
-	//====================================
-	/*still need to implement the following:
-	if *emergency {
-		emergencyConfig()
-	}
-
-	if *ssl {
-		sslConfig()
-	}
-	*/
-
-	//====================================
-
 	//get currently activeVersion to be used
-	activeVersion := getActiveVersion(*client, *serviceID, *apiKey, config)
+	activeVersion := getActiveVersion(*client, *serviceID, config)
 
 	// add logs only to a service
 	if *logOnly {
