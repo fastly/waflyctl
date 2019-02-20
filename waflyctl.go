@@ -120,7 +120,7 @@ type WeblogSettings struct {
 type VCLSnippetSettings struct {
 	Name     string
 	Content  string
-	Type     string
+	Type     fastly.SnippetType
 	Priority int
 	Dynamic  int
 }
@@ -187,18 +187,6 @@ type Rule struct {
 		Source        interface{} `json:"source"`
 		Vcl           interface{} `json:"vcl"`
 	} `json:"attributes"`
-}
-
-// Snippet from Fastly API
-type Snippet []struct {
-	ID        string      `json:"id"`
-	ServiceID string      `json:"service_id"`
-	Version   string      `json:"version"`
-	Name      string      `json:"name"`
-	Priority  string      `json:"priority"`
-	Dynamic   string      `json:"dynamic"`
-	Type      string      `json:"type"`
-	Content   interface{} `json:"content"`
 }
 
 // PagesOfRules contains a list of rulelist
@@ -311,23 +299,18 @@ func cloneVersion(client fastly.Client, serviceID string, config TOMLConfig, act
 	return version.Number
 }
 
-func prefetchCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
-
+func prefetchCondition(client fastly.Client, serviceID string, config TOMLConfig, version int) {
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create prefetch condition %q: ListConditions: %v\n", config.Prefetch.Name, err)
 	}
 	for _, condition := range conditions {
-		//do we have a condition name waf_prefetch, if not create one
-		//iterate through returned conditions check if any say waf_prefetch if not lets configure the service
 		if strings.EqualFold(condition.Name, config.Prefetch.Name) {
-			Error.Println("WAF Prefetch already exists with name: " + condition.Name + "..skipping creating conditions")
-			return false
+			Warning.Printf("Prefetch condition %q already exists, skipping\n", config.Prefetch.Name)
+			return
 		}
 	}
 	_, err = client.CreateCondition(&fastly.CreateConditionInput{
@@ -338,31 +321,24 @@ func prefetchCondition(client fastly.Client, serviceID string, version int, conf
 		Type:      config.Prefetch.Type,
 		Priority:  10,
 	})
-
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create prefetch condition %q: CreateCondition: %v\n", config.Prefetch.Name, err)
 	}
-
-	return true
+	Info.Printf("Prefetch condition %q created\n", config.Prefetch.Name)
 }
 
-func responseObject(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
+func responseObject(client fastly.Client, serviceID string, config TOMLConfig, version int) {
 	responses, err := client.ListResponseObjects(&fastly.ListResponseObjectsInput{
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create response object %q: ListResponseObjects: %v\n", config.Response.Name, err)
 	}
 	for _, response := range responses {
-		//iterate through returned responses check if any say WAF_Response if not lets configure the service
-		Info.Println(response.Name)
 		if strings.EqualFold(response.Name, config.Response.Name) {
-			Error.Println("WAF Response already exists with name: " + response.Name + "..skipping creating Response Object")
-			return false
+			Warning.Printf("Response object %q already exists, skipping\n", config.Response.Name)
+			return
 		}
 	}
 	_, err = client.CreateResponseObject(&fastly.CreateResponseObjectInput{
@@ -375,70 +351,41 @@ func responseObject(client fastly.Client, serviceID string, version int, config 
 		ContentType: config.Response.ContentType,
 	})
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create response object %q: CreateResponseObject: %v\n", config.Response.Name, err)
 	}
-	return true
+	Info.Printf("Response object %q created\n", config.Response.Name)
 }
 
-//func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config tomlConfig)
-func vclSnippet(serviceID, apiKey string, version int, config TOMLConfig) bool {
-	//Work on Tags first
-	//API Endpoint to call for domain searches
-	//strconv.FormatInt(rule, 10)
-	apiCall := config.APIEndpoint + "/service/" + serviceID + "/version/" + strconv.Itoa(version) + "/snippet"
-
-	//get list of current snippets
-	resp, err := resty.R().
-		SetHeader("Accept", "application/vnd.api+json").
-		SetHeader("Fastly-Key", apiKey).
-		Get(apiCall)
-
-	//check if we had an issue with our call
+func vclSnippet(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+	snippets, err := client.ListSnippets(&fastly.ListSnippetsInput{
+		Service: serviceID,
+		Version: version,
+	})
 	if err != nil {
-		Error.Println("Error with API call: " + apiCall)
-		os.Exit(1)
+		Error.Fatalf("Cannot create VCL snippet %q: ListSnippets: %v\n", config.Vclsnippet.Name, err)
 	}
-
-	//unmarshal the response and extract the service id
-	body := Snippet{}
-	json.Unmarshal([]byte(resp.String()), &body)
-
-	//check if it has already been created
-	for _, snippet := range body {
+	for _, snippet := range snippets {
 		if snippet.Name == config.Vclsnippet.Name {
-			Warning.Println(config.Vclsnippet.Name + " already exists not creating a new one")
-			return false
+			Warning.Printf("VCL snippet %q already exists, skipping\n", config.Vclsnippet.Name)
+			return
 		}
 	}
-
-	//otherwise lets create one
-	resp, err = resty.R().
-		SetHeader("Accept", "application/json").
-		SetHeader("Fastly-Key", apiKey).
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetBody(`name=` + config.Vclsnippet.Name + `&type=` + config.Vclsnippet.Type + `&priority=` + strconv.Itoa(config.Vclsnippet.Priority) + `&dynamic=` + strconv.Itoa(config.Vclsnippet.Dynamic) + `&content=` + config.Vclsnippet.Content).
-		Post(apiCall)
-
-	//check if we had an issue with our call
+	_, err = client.CreateSnippet(&fastly.CreateSnippetInput{
+		Service:  serviceID,
+		Version:  version,
+		Name:     config.Vclsnippet.Name,
+		Priority: config.Vclsnippet.Priority,
+		Dynamic:  config.Vclsnippet.Dynamic,
+		Content:  config.Vclsnippet.Content,
+		Type:     config.Vclsnippet.Type,
+	})
 	if err != nil {
-		Error.Println("Error with API call: " + apiCall)
-		os.Exit(1)
+		Error.Fatalf("Cannot create VCL snippet %q: CreateSnippet: %v\n", config.Vclsnippet.Name, err)
 	}
-
-	if resp.Status() == "200 OK" {
-		return true
-	}
-
-	Error.Println("Could not add dynamic VCL snippet Fastly_WAF_Snippet the response was: ", resp.String())
-	return false
-
+	Info.Printf("VCL snippet %q created\n", config.Vclsnippet.Name)
 }
 
-// FastlyLogging configures the logging endpoints for the customer
-func FastlyLogging(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
-	//add logging logic to service
-	// create req logging endpoint
+func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, version int) {
 	_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
 		Service:       serviceID,
 		Version:       version,
@@ -453,20 +400,14 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		FormatVersion: 2,
 		MessageType:   "blank",
 	})
-
 	switch {
 	case err == nil:
-		Info.Println("Created request logging endpoint: " + config.Weblog.Name)
-
+		Info.Printf("Logging endpoint %q created\n", config.Weblog.Name)
 	case strings.Contains(err.Error(), "Duplicate record"):
-		Info.Println("Request logging endpoint " + config.Weblog.Name + " already exists. Skipping.")
-
+		Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Weblog.Name)
 	default:
-		fmt.Print(err)
-		return false
+		Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Weblog.Name, err)
 	}
-
-	// create waf logging endpoint
 	_, err = client.CreateSyslog(&fastly.CreateSyslogInput{
 		Service:       serviceID,
 		Version:       version,
@@ -482,20 +423,14 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		MessageType:   "blank",
 		Placement:     "waf_debug",
 	})
-
 	switch {
 	case err == nil:
-		Info.Println("Created WAF logging endpoint: " + config.Waflog.Name)
-
+		Info.Printf("Logging endpoint %q created\n", config.Waflog.Name)
 	case strings.Contains(err.Error(), "Duplicate record"):
-		Info.Println("WAF logging endpoint " + config.Waflog.Name + " already exists. Skipping.")
-
+		Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Waflog.Name)
 	default:
-		fmt.Print(err)
-		return false
+		Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Waflog.Name, err)
 	}
-
-	return true
 }
 
 func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
@@ -512,7 +447,7 @@ func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, ver
 	return waf.ID
 }
 
-func createOWASP(client fastly.Client, serviceID, wafID string, version int, config TOMLConfig) {
+func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, version int, wafID string) {
 	var created bool
 	var err error
 	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
@@ -745,41 +680,19 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 }
 
 func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) string {
+	prefetchCondition(client, serviceID, config, version)
 
-	//create new conditions
-	if prefetchCondition(client, serviceID, version, config) {
-		Info.Println("successfully created prefetch condition: WAF_Prefetch")
-	} else {
-		Error.Printf("Issue creating prefetch condition..")
-	}
+	responseObject(client, serviceID, config, version)
 
-	//create response object
-	if responseObject(client, serviceID, version, config) {
-		Info.Println("successfully created response object: WAF_Response")
-	} else {
-		Error.Printf("Issue creating response object..")
-	}
+	vclSnippet(client, serviceID, config, version)
 
-	//create VCL Snippet
-	if vclSnippet(serviceID, apiKey, version, config) {
-		Info.Println("successfully created vcl snippet: Fastly_WAF_Snippet")
-	} else {
-		Error.Printf("Issue creating vcl snippet..")
-	}
-
-	//create WAF container
 	wafID := wafContainer(client, serviceID, config, version)
 
-	//set OWASP parameters
-	createOWASP(client, serviceID, wafID, version, config)
+	createOWASP(client, serviceID, config, version, wafID)
 
-	//set logging parameters
-	if FastlyLogging(client, serviceID, version, config) {
-		Info.Println("successfully created logging settings")
-	} else {
-		Error.Printf("Fatal issue creating logging settings..")
-		os.Exit(1)
-	}
+	// In order to create the logging endpoints WAF must be
+	// created first. ¯\_(ツ)_/¯
+	fastlyLogging(client, serviceID, config, version)
 
 	return wafID
 }
@@ -1910,19 +1823,10 @@ func main() {
 		version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 		//create VCL Snippet
-		if vclSnippet(*serviceID, *apiKey, version, config) {
-			Info.Println("successfully created vcl snippet: Fastly_WAF_Snippet")
-		} else {
-			Error.Printf("Issue creating vcl snippet..")
-		}
+		vclSnippet(*client, *serviceID, config, version)
 
 		//set logging parameters
-		if FastlyLogging(*client, *serviceID, version, config) {
-			Info.Println("successfully created logging settings")
-		} else {
-			Error.Printf("Fatal issue creating logging settings..")
-			os.Exit(1)
-		}
+		fastlyLogging(*client, *serviceID, config, version)
 
 		if *withShielding {
 			Info.Printf("WAF enabled with Shielding, adding logging condition")
@@ -2070,7 +1974,7 @@ func main() {
 
 			case *editOWASP:
 				Info.Printf("Editing OWASP settings for WAF #%v", index+1)
-				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
+				createOWASP(*client, *serviceID, config, activeVersion, waf.ID)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2113,7 +2017,7 @@ func main() {
 				//publisher management
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
 				//OWASP
-				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
+				createOWASP(*client, *serviceID, config, activeVersion, waf.ID)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
