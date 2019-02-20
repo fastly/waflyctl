@@ -1,7 +1,7 @@
 /*
  * WAF provisioning tool
  *
- * Copyright (c) 2018 Fastly Inc.
+ * Copyright (c) 2018-2019 Fastly Inc.
 
  * Author: Jose Enrique Hernandez
  */
