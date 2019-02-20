@@ -1,0 +1,45 @@
+{
+    "data": {
+        "id": "4HWq26YF12xqZytqTy3LPa",
+        "type": "owasp",
+        "attributes": {
+            "created_at": "2017-01-01T01:01:01Z",
+            "updated_at": "2018-01-01T01:01:01Z",
+            "critical_anomaly_score": 5,
+            "error_anomaly_score": 4,
+            "notice_anomaly_score": 2,
+            "warning_anomaly_score": 3,
+            "http_violation_score_threshold": 5,
+            "inbound_anomaly_score_threshold": 10,
+            "lfi_score_threshold": 5,
+            "php_injection_score_threshold": 5,
+            "rce_score_threshold": 5,
+            "rfi_score_threshold": 5,
+            "session_fixation_score_threshold": 5,
+            "sql_injection_score_threshold": 5,
+            "xss_score_threshold": 5,
+            "paranoia_level": 3,
+            "arg_name_length": 800,
+            "arg_length": 800,
+            "total_arg_length": 6400,
+            "max_file_size": 10000000,
+            "combined_file_sizes": 10000000,
+            "max_num_args": 255,
+            "high_risk_country_codes": null,
+            "allowed_methods": "GET HEAD POST OPTIONS PUT PATCH DELETE",
+            "restricted_headers": "/proxy/ /lock-token/ /content-range/ /translate/ /if/",
+            "restricted_extensions": ".asa/ .asax/ .ascx/ .axd/ .backup/ .bak/ .bat/ .cdx/ .cer/ .cfg/ .cmd/ .com/ .config/ .conf/ .cs/ .csproj/ .csr/ .dat/ .db/ .dbf/ .dll/ .dos/ .htr/ .htw/ .ida/ .idc/ .idq/ .inc/ .ini/ .key/ .licx/ .lnk/ .log/ .mdb/ .old/ .pass/ .pdb/ .pol/ .printer/ .pwd/ .resources/ .resx/ .sql/ .sys/ .vb/ .vbs/ .vbproj/ .vsdisco/ .webinfo/ .xsd/ .xsx",
+            "allowed_http_versions": "HTTP/1.0 HTTP/1.1 HTTP/2",
+            "allowed_request_content_type": "application/x-www-form-urlencoded|multipart/form-data|text/xml|application/xml|application/x-amf|application/json|text/plain",
+            "crs_validate_utf8_encoding": false
+        },
+        "relationships": {
+            "waf": {
+                "data": {
+                    "id": "{{waf-id}}",
+                    "type": "waf"
+                }
+            }
+        }
+    }
+}

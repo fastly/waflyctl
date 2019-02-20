@@ -1,0 +1,74 @@
+[
+    {
+        "id": "{{waf-id}}-2200002",
+        "type": "rule_status",
+        "attributes": {
+            "status": "log",
+            "modsec_rule_id": "2200002",
+            "unique_rule_id": "2U0FU05tT1lAT08GCtqomv"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2200000",
+        "type": "rule_status",
+        "attributes": {
+            "status": "block",
+            "modsec_rule_id": "2200000",
+            "unique_rule_id": "6x5k86Jn2HONFI0RS2tI02"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2084113",
+        "type": "rule_status",
+        "attributes": {
+            "status": "block",
+            "modsec_rule_id": "2084113",
+            "unique_rule_id": "74fE7qH0tSiscgEBFSQzYY"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2077878",
+        "type": "rule_status",
+        "attributes": {
+            "status": "log",
+            "modsec_rule_id": "2077878",
+            "unique_rule_id": "6t7QjkjpUrh1Q6rS7q8kio"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2077876",
+        "type": "rule_status",
+        "attributes": {
+            "status": "log",
+            "modsec_rule_id": "2077876",
+            "unique_rule_id": "6I76fUnNtGcxBS2L2l3BtF"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2081321",
+        "type": "rule_status",
+        "attributes": {
+            "status": "log",
+            "modsec_rule_id": "2081321",
+            "unique_rule_id": "2ZGhSVghOoN1LLIASIQYfN"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2016874",
+        "type": "rule_status",
+        "attributes": {
+            "status": "disabled",
+            "modsec_rule_id": "2016874",
+            "unique_rule_id": "5oAGhZVNQwLUjQeIHM8Qxh"
+        }
+    },
+    {
+        "id": "{{waf-id}}-2025198",
+        "type": "rule_status",
+        "attributes": {
+            "status": "log",
+            "modsec_rule_id": "2025198",
+            "unique_rule_id": "1IyF2mdfpCTmjAb0kKkreI"
+        }
+    }
+]

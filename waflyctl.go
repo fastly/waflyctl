@@ -3,26 +3,22 @@
  *
  * Copyright (c) 2018-2019 Fastly Inc.
 
- * Author: Jose Enrique Hernandez
+ * Original Author: Jose Enrique Hernandez (@d1vious)
+ * Additional Contibutors: Federico Schwindt (@fgsch)
+ *                         Edward Thurgood (@ejthurgo)
  */
 
 package main
 
 import (
-	"bytes"
-	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/sethvargo/go-fastly/fastly"
@@ -31,9 +27,6 @@ import (
 )
 
 var (
-	//logging variables
-	logFile string
-
 	//Info level logging
 	Info *log.Logger
 
@@ -42,6 +35,8 @@ var (
 
 	//Error level logging
 	Error *log.Logger
+
+	config TOMLConfig // Configuration is immutable within the scope of CLI execution. Singleton not necessary?
 
 	// version number
 	version = "dev"
@@ -57,53 +52,12 @@ type TOMLConfig struct {
 	Action        string
 	Rules         []int64
 	DisabledRules []int64
-	Owasp         owaspSettings
+	Owasp         OWASPSettings
 	Weblog        WeblogSettings
 	Waflog        WaflogSettings
 	Vclsnippet    VCLSnippetSettings
 	Response      ResponseSettings
 	Prefetch      PrefetchSettings
-}
-
-// Backup is a backup of the rule status for a WAF
-type Backup struct {
-	ServiceID string
-	ID        string
-	Updated   time.Time
-	Disabled  []string
-	Block     []string
-	Log       []string
-	Owasp     owaspSettings
-}
-
-type owaspSettings struct {
-	AllowedHTTPVersions              string
-	AllowedMethods                   string
-	AllowedRequestContentType        string
-	AllowedRequestContentTypeCharset string
-	ArgLength                        int
-	ArgNameLength                    int
-	CombinedFileSizes                int
-	CriticalAnomalyScore             int
-	CRSValidateUTF8Encoding          bool
-	ErrorAnomalyScore                int
-	HTTPViolationScoreThreshold      int
-	InboundAnomalyScoreThreshold     int
-	LFIScoreThreshold                int
-	MaxFileSize                      int
-	MaxNumArgs                       int
-	NoticeAnomalyScore               int
-	ParanoiaLevel                    int
-	PHPInjectionScoreThreshold       int
-	RCEScoreThreshold                int
-	RestrictedExtensions             string
-	RestrictedHeaders                string
-	RFIScoreThreshold                int
-	SessionFixationScoreThreshold    int
-	SQLInjectionScoreThreshold       int
-	XSSScoreThreshold                int
-	TotalArgLength                   int
-	WarningAnomalyScore              int
 }
 
 // WeblogSettings parameters for logs in config file
@@ -251,22 +205,22 @@ func Init(configFile string) TOMLConfig {
 	//now lets create a logging object
 	file, err := os.OpenFile(config.Logpath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
-		log.Fatalln("Failed to open log file", logFile, ":", err)
+		log.Fatalln("Failed to open log file", config.Logpath, ":", err)
 	}
 
 	multi := io.MultiWriter(file, os.Stdout)
 
 	Info = log.New(multi,
 		"INFO: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
+		log.Ldate|log.Ltime)
 
 	Warning = log.New(multi,
 		"WARNING: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
+		log.Ldate|log.Ltime)
 
 	Error = log.New(multi,
 		"ERROR: ",
-		log.Ldate|log.Ltime|log.Lshortfile)
+		log.Ldate|log.Ltime)
 
 	return config
 }
@@ -1541,167 +1495,6 @@ func getAllRules(apiEndpoint, apiKey, configID string) bool {
 
 }
 
-// backupConfig function stores all rules, status, configuration set, and OWASP configuration locally
-func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, bpath string) bool {
-
-	//validate the output path
-	d := filepath.Dir(bpath)
-	if _, err := os.Stat(d); os.IsNotExist(err) {
-		Error.Printf("Output path does not exist: %s", d)
-		return false
-	}
-
-	//get all rules and their status
-	//set our API call
-	apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses"
-
-	resp, err := resty.R().
-		SetHeader("Accept", "application/vnd.api+json").
-		SetHeader("Fastly-Key", apiKey).
-		SetHeader("Content-Type", "application/vnd.api+json").
-		Get(apiCall)
-
-	//check if we had an issue with our call
-	if err != nil {
-		Error.Println("Error with API call: " + apiCall)
-		Error.Println(resp.String())
-		return false
-	}
-
-	//unmarshal the response and extract the service id
-	body := RuleList{}
-	json.Unmarshal([]byte(resp.String()), &body)
-
-	if len(body.Data) == 0 {
-		Error.Println("No Fastly Rules found to back up")
-		return false
-	}
-
-	result := PagesOfRules{[]RuleList{}}
-	result.page = append(result.page, body)
-
-	currentpage := body.Meta.CurrentPage
-	perpage := body.Meta.PerPage
-	totalpages := body.Meta.TotalPages
-
-	Info.Printf("Backing up %d rules", body.Meta.RecordCount)
-
-	// iterate through pages collecting all rules
-	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
-
-		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
-		//set our API call
-		apiCall := fmt.Sprintf("%s/service/%s/wafs/%s/rule_statuses?page[size]=%d&page[number]=%d", apiEndpoint, serviceID, wafID, perpage, currentpage)
-
-		resp, err := resty.R().
-			SetHeader("Accept", "application/vnd.api+json").
-			SetHeader("Fastly-Key", apiKey).
-			SetHeader("Content-Type", "application/vnd.api+json").
-			Get(apiCall)
-
-		//check if we had an issue with our call
-		if err != nil {
-			Error.Println("Error with API call: " + apiCall)
-			Error.Println(resp.String())
-			return false
-		}
-
-		//unmarshal the response and extract the service id
-		body := RuleList{}
-		json.Unmarshal([]byte(resp.String()), &body)
-		result.page = append(result.page, body)
-	}
-
-	var log []string
-	var disabled []string
-	var block []string
-
-	for _, p := range result.page {
-		for _, r := range p.Data {
-			switch r.Attributes.Status {
-			case "log":
-				log = append(log, r.Attributes.ModsecRuleID)
-			case "block":
-				block = append(block, r.Attributes.ModsecRuleID)
-			case "disabled":
-				disabled = append(disabled, r.Attributes.ModsecRuleID)
-			}
-		}
-	}
-
-	//backup OWASP settings
-	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
-		Service: serviceID,
-		ID:      wafID,
-	})
-
-	if owasp.ID == "" {
-		Error.Println("No OWASP Object to back up")
-		return false
-	}
-
-	o := owaspSettings{
-		AllowedHTTPVersions:              owasp.AllowedHTTPVersions,
-		AllowedMethods:                   owasp.AllowedMethods,
-		AllowedRequestContentType:        owasp.AllowedRequestContentType,
-		AllowedRequestContentTypeCharset: owasp.AllowedRequestContentTypeCharset,
-		ArgLength:                        owasp.ArgLength,
-		ArgNameLength:                    owasp.ArgNameLength,
-		CombinedFileSizes:                owasp.CombinedFileSizes,
-		CriticalAnomalyScore:             owasp.CriticalAnomalyScore,
-		CRSValidateUTF8Encoding:          owasp.CRSValidateUTF8Encoding,
-		ErrorAnomalyScore:                owasp.ErrorAnomalyScore,
-		HTTPViolationScoreThreshold:      owasp.HTTPViolationScoreThreshold,
-		InboundAnomalyScoreThreshold:     owasp.InboundAnomalyScoreThreshold,
-		LFIScoreThreshold:                owasp.LFIScoreThreshold,
-		MaxFileSize:                      owasp.MaxFileSize,
-		MaxNumArgs:                       owasp.MaxNumArgs,
-		NoticeAnomalyScore:               owasp.NoticeAnomalyScore,
-		ParanoiaLevel:                    owasp.ParanoiaLevel,
-		PHPInjectionScoreThreshold:       owasp.PHPInjectionScoreThreshold,
-		RCEScoreThreshold:                owasp.RCEScoreThreshold,
-		RestrictedExtensions:             owasp.RestrictedExtensions,
-		RestrictedHeaders:                owasp.RestrictedHeaders,
-		RFIScoreThreshold:                owasp.RFIScoreThreshold,
-		SessionFixationScoreThreshold:    owasp.SessionFixationScoreThreshold,
-		SQLInjectionScoreThreshold:       owasp.SQLInjectionScoreThreshold,
-		XSSScoreThreshold:                owasp.XSSScoreThreshold,
-		TotalArgLength:                   owasp.TotalArgLength,
-		WarningAnomalyScore:              owasp.WarningAnomalyScore,
-	}
-
-	//create a hash
-	hasher := sha1.New()
-	hasher.Write([]byte(serviceID + time.Now().String()))
-	sha := hex.EncodeToString((hasher.Sum(nil)))
-
-	//Safe Backup Object
-	backup := Backup{
-		ID:        sha,
-		ServiceID: serviceID,
-		Disabled:  disabled,
-		Block:     block,
-		Log:       log,
-		Owasp:     o,
-		Updated:   time.Now(),
-	}
-
-	buf := new(bytes.Buffer)
-	if err := toml.NewEncoder(buf).Encode(backup); err != nil {
-		Error.Println(err)
-		return false
-	}
-
-	err = ioutil.WriteFile(bpath, buf.Bytes(), 0644)
-	if err != nil {
-		Error.Println(err)
-		return false
-	}
-
-	Info.Printf("Bytes written: %d to %s\n", buf.Len(), bpath)
-	return true
-}
-
 func homeDir() string {
 	user, err := user.Current()
 	if err != nil {
@@ -2006,9 +1799,13 @@ func main() {
 
 				bp := strings.Replace(*backupPath, "<service-id>", *serviceID, -1)
 
-				if !backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client, bp) {
+				Info.Printf("Performing backup on SID: %s, WAFID: %s\n", *serviceID, waf.ID)
+				ib, err := backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, bp)
+				if err != nil {
+					Error.Printf("%s", err)
 					os.Exit(1)
 				}
+				Info.Printf("Written %d bytes to %s\n", ib, bp)
 
 			case *provision:
 				//tags management
@@ -2033,8 +1830,12 @@ func main() {
 				os.Exit(1)
 			}
 
-			//validate the config
-			validateVersion(*client, *serviceID, activeVersion)
+			// validate the config (exclude actions which don't require changes
+			// to versioned config)
+			if !*backup && !*listRules && !*listConfigSet && *listAllRules == "" {
+				validateVersion(*client, *serviceID, activeVersion)
+			}
+
 			Info.Println("Completed")
 			os.Exit(0)
 		}
