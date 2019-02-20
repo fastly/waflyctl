@@ -813,7 +813,7 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 		Error.Println("Version invalid")
 		return false
 	}
-	Info.Printf("Config Version %v Validated successfully", version)
+	Info.Printf("Config Version %v validated. Remember to activate it", version)
 	return true
 
 }
