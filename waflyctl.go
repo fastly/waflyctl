@@ -299,23 +299,16 @@ func getActiveVersion(client fastly.Client, serviceID string, config TOMLConfig)
 	return 0
 }
 
-func cloneVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig, activeVersion int) (bool, int) {
-
-	Info.Printf("cloning current service version #%v", activeVersion)
+func cloneVersion(client fastly.Client, serviceID string, config TOMLConfig, activeVersion int) int {
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
 		Service: serviceID,
 		Version: activeVersion,
 	})
 	if err != nil {
-		Error.Println(err)
-		Error.Printf("Error Cloning Service %s", serviceID)
-		os.Exit(1)
-		return false, 0
+		Error.Fatalf("Cannot clone version %d: CloneVersion: %v\n", activeVersion, err)
 	}
-
-	Info.Printf("new working service version #%v", version.Number)
-	return true, version.Number
-
+	Info.Printf("New version %d created\n", version.Number)
+	return version.Number
 }
 
 func prefetchCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
@@ -505,7 +498,7 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 	return true
 }
 
-func wafContainer(client fastly.Client, serviceID string, version int, config TOMLConfig) (bool, string) {
+func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
 	waf, err := client.CreateWAF(&fastly.CreateWAFInput{
 		Service:           serviceID,
 		Version:           version,
@@ -513,13 +506,10 @@ func wafContainer(client fastly.Client, serviceID string, version int, config TO
 		Response:          config.Response.Name,
 	})
 	if err != nil {
-		Error.Fatal(err)
-		return false, waf.ID
+		Error.Fatalf("Cannot create WAF: CreateWAF: %v\n", err)
 	}
-
-	Info.Printf("WAF created with ID: %v", waf.ID)
-	return true, waf.ID
-
+	Info.Printf("WAF %q created\n", waf.ID)
+	return waf.ID
 }
 
 func createOWASP(client fastly.Client, serviceID, wafID string, version int, config TOMLConfig) {
@@ -778,13 +768,7 @@ func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLCon
 	}
 
 	//create WAF container
-	wafContainerStatus, wafID := wafContainer(client, serviceID, version, config)
-	if wafContainerStatus {
-		Info.Println("successfully created WAF container")
-	} else {
-		Error.Printf("Issue creating WAF container..")
-		os.Exit(1)
-	}
+	wafID := wafContainer(client, serviceID, config, version)
 
 	//set OWASP parameters
 	createOWASP(client, serviceID, wafID, version, config)
@@ -1923,7 +1907,7 @@ func main() {
 
 		Info.Println("Adding logging endpoints only")
 
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 		//create VCL Snippet
 		if vclSnippet(*serviceID, *apiKey, version, config) {
@@ -1958,7 +1942,7 @@ func main() {
 	}
 	// check if is a de-provisioning call
 	if *deprovision {
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
 		if result {
@@ -1974,9 +1958,7 @@ func main() {
 
 	// check if is a delete logs parameter was called
 	if *deleteLogs {
-
-		//clone current version
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 		//delete the logs
 		result := DeleteLogsCall(*client, *serviceID, *apiKey, config, version)
@@ -2101,8 +2083,7 @@ func main() {
 			case *withPX:
 				Info.Printf("WAF enabled with PerimeterX, adding logging condition")
 
-				//clone current version
-				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+				version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 				WithPXCondition(*client, *serviceID, version, config)
 
@@ -2110,7 +2091,7 @@ func main() {
 				Info.Printf("WAF enabled with shielding, adding logging condition")
 
 				//clone current version
-				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+				version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 				WithShieldingCondition(*client, *serviceID, version, config)
 
@@ -2157,7 +2138,7 @@ func main() {
 		Warning.Println("Provisioning a new WAF on Service ID: " + *serviceID)
 
 		//clone current version
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, config, activeVersion)
 
 		//provision a new WAF service
 		wafID := provisionWAF(*client, *serviceID, *apiKey, config, version)
