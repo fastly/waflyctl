@@ -271,7 +271,7 @@ func Init(configFile string) TOMLConfig {
 	return config
 }
 
-func getActiveVersion(client fastly.Client, serviceID string, config TOMLConfig) int {
+func getActiveVersion(client fastly.Client, serviceID string) int {
 	service, err := client.GetService(&fastly.GetServiceInput{
 		ID: serviceID,
 	})
@@ -287,7 +287,7 @@ func getActiveVersion(client fastly.Client, serviceID string, config TOMLConfig)
 	return 0
 }
 
-func cloneVersion(client fastly.Client, serviceID string, config TOMLConfig, activeVersion int) int {
+func cloneVersion(client fastly.Client, serviceID string, activeVersion int) int {
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
 		Service: serviceID,
 		Version: activeVersion,
@@ -447,7 +447,7 @@ func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, ver
 	return waf.ID
 }
 
-func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, version int, wafID string) {
+func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, wafID string) {
 	var created bool
 	var err error
 	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
@@ -533,7 +533,7 @@ func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, vers
 }
 
 // DeleteLogsCall removes logging endpoints
-func DeleteLogsCall(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) bool {
+func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, version int) bool {
 
 	err := client.DeleteSyslog(&fastly.DeleteSyslogInput{
 		Service: serviceID,
@@ -618,7 +618,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 	for index, waf := range wafs {
 
 		//remove WAF Logging
-		result := DeleteLogsCall(client, serviceID, apiKey, config, version)
+		result := DeleteLogsCall(client, serviceID, config, version)
 		Info.Printf("Deleting WAF #%v Logging", index+1)
 		if !result {
 			Error.Printf("Deleting WAF #%v Logging: %s", index+1, err)
@@ -679,7 +679,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 	return true
 }
 
-func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) string {
+func provisionWAF(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
 	prefetchCondition(client, serviceID, config, version)
 
 	responseObject(client, serviceID, config, version)
@@ -688,7 +688,7 @@ func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLCon
 
 	wafID := wafContainer(client, serviceID, config, version)
 
-	createOWASP(client, serviceID, config, version, wafID)
+	createOWASP(client, serviceID, config, wafID)
 
 	// In order to create the logging endpoints WAF must be
 	// created first. ¯\_(ツ)_/¯
@@ -715,7 +715,7 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 
 }
 
-func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) bool {
+func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) bool {
 
 	for _, publisher := range config.Publisher {
 
@@ -814,7 +814,7 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly
 
 }
 
-func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
+func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 	//Work on Tags first
 	//API Endpoint to call for domain searches
 	apiCall := apiEndpoint + "/wafs/tags"
@@ -897,7 +897,7 @@ func changeStatus(apiEndpoint, apiKey, wafID, status string) {
 
 }
 
-func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
+func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 	//implement individual rule management here
 	for _, rule := range config.Rules {
 
@@ -930,7 +930,7 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cli
 }
 
 // DefaultRuleDisabled disables rule IDs defined in the configuration file
-func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
+func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 
 	//implement individual rule management here
 	for _, rule := range config.DisabledRules {
@@ -1813,14 +1813,14 @@ func main() {
 	}
 
 	//get currently activeVersion to be used
-	activeVersion := getActiveVersion(*client, *serviceID, config)
+	activeVersion := getActiveVersion(*client, *serviceID)
 
 	// add logs only to a service
 	if *logOnly {
 
 		Info.Println("Adding logging endpoints only")
 
-		version := cloneVersion(*client, *serviceID, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		//create VCL Snippet
 		vclSnippet(*client, *serviceID, config, version)
@@ -1846,7 +1846,7 @@ func main() {
 	}
 	// check if is a de-provisioning call
 	if *deprovision {
-		version := cloneVersion(*client, *serviceID, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
 		if result {
@@ -1862,10 +1862,10 @@ func main() {
 
 	// check if is a delete logs parameter was called
 	if *deleteLogs {
-		version := cloneVersion(*client, *serviceID, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		//delete the logs
-		result := DeleteLogsCall(*client, *serviceID, *apiKey, config, version)
+		result := DeleteLogsCall(*client, *serviceID, config, version)
 
 		if result {
 			Info.Printf("Successfully deleted logging endpint %s and %s in Service ID %s. Remember to activate version %v!", config.Weblog.Name, config.Waflog.Name, *serviceID, version)
@@ -1936,7 +1936,7 @@ func main() {
 			case *tags != "":
 				Info.Println("Editing Tags")
 				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -1949,7 +1949,7 @@ func main() {
 			case *publishers != "":
 				Info.Println("Editing Publishers")
 				//Publisher management
-				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -1962,7 +1962,7 @@ func main() {
 			case *rules != "":
 				Info.Println("Editing Rules")
 				//rule management
-				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -1974,7 +1974,7 @@ func main() {
 
 			case *editOWASP:
 				Info.Printf("Editing OWASP settings for WAF #%v", index+1)
-				createOWASP(*client, *serviceID, config, activeVersion, waf.ID)
+				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -1987,7 +1987,7 @@ func main() {
 			case *withPX:
 				Info.Printf("WAF enabled with PerimeterX, adding logging condition")
 
-				version := cloneVersion(*client, *serviceID, config, activeVersion)
+				version := cloneVersion(*client, *serviceID, activeVersion)
 
 				WithPXCondition(*client, *serviceID, version, config)
 
@@ -1995,7 +1995,7 @@ func main() {
 				Info.Printf("WAF enabled with shielding, adding logging condition")
 
 				//clone current version
-				version := cloneVersion(*client, *serviceID, config, activeVersion)
+				version := cloneVersion(*client, *serviceID, activeVersion)
 
 				WithShieldingCondition(*client, *serviceID, version, config)
 
@@ -2011,13 +2011,13 @@ func main() {
 
 			case *provision:
 				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//rule management
-				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//publisher management
-				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//OWASP
-				createOWASP(*client, *serviceID, config, activeVersion, waf.ID)
+				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2042,22 +2042,22 @@ func main() {
 		Warning.Println("Provisioning a new WAF on Service ID: " + *serviceID)
 
 		//clone current version
-		version := cloneVersion(*client, *serviceID, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		//provision a new WAF service
-		wafID := provisionWAF(*client, *serviceID, *apiKey, config, version)
+		wafID := provisionWAF(*client, *serviceID, config, version)
 
 		//publisher management
-		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//tags management
-		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//rule management
-		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//Default Disabled
-		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		if *withShielding {
 			Info.Printf("WAF enabled with Shielding, adding logging condition")
