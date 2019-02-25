@@ -33,7 +33,6 @@ Documentation for this module can be found in the
 folder.
 
 - [Requirements and Installation](Documentation/INSTALLATION.md)
-- [Usage](Documentation/USAGE.md)
 - [Examples](Documentation/EXAMPLES.md)
 - [Build](Documentation/BUILD.md)
 - [How to report bugs](Documentation/OPENING-ISSUES.md)
