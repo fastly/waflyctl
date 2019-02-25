@@ -1,7 +1,7 @@
 /*
  * WAF provisioning tool
  *
- * Copyright (c) 2018 Fastly Inc.
+ * Copyright (c) 2018-2019 Fastly Inc.
 
  * Author: Jose Enrique Hernandez
  */
@@ -120,7 +120,7 @@ type WeblogSettings struct {
 type VCLSnippetSettings struct {
 	Name     string
 	Content  string
-	Type     string
+	Type     fastly.SnippetType
 	Priority int
 	Dynamic  int
 }
@@ -187,18 +187,6 @@ type Rule struct {
 		Source        interface{} `json:"source"`
 		Vcl           interface{} `json:"vcl"`
 	} `json:"attributes"`
-}
-
-// Snippet from Fastly API
-type Snippet []struct {
-	ID        string      `json:"id"`
-	ServiceID string      `json:"service_id"`
-	Version   string      `json:"version"`
-	Name      string      `json:"name"`
-	Priority  string      `json:"priority"`
-	Dynamic   string      `json:"dynamic"`
-	Type      string      `json:"type"`
-	Content   interface{} `json:"content"`
 }
 
 // PagesOfRules contains a list of rulelist
@@ -283,58 +271,46 @@ func Init(configFile string) TOMLConfig {
 	return config
 }
 
-func getActiveVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig) int {
+func getActiveVersion(client fastly.Client, serviceID string) int {
 	service, err := client.GetService(&fastly.GetServiceInput{
 		ID: serviceID,
 	})
 	if err != nil {
-		Error.Fatalf("%v\n", err)
+		Error.Fatalf("Cannot get service %q: GetService: %v\n", serviceID, err)
 	}
 	for _, version := range service.Versions {
 		if version.Active {
 			return version.Number
 		}
 	}
-	Error.Fatal("Found no active version on the service, service ID might be incorrect..exiting")
+	Error.Fatal("No active version found (wrong service id?). Aborting")
 	return 0
 }
 
-func cloneVersion(client fastly.Client, serviceID, apiKey string, config TOMLConfig, activeVersion int) (bool, int) {
-
-	Info.Printf("cloning current service version #%v", activeVersion)
+func cloneVersion(client fastly.Client, serviceID string, activeVersion int) int {
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
 		Service: serviceID,
 		Version: activeVersion,
 	})
 	if err != nil {
-		Error.Println(err)
-		Error.Printf("Error Cloning Service %s", serviceID)
-		os.Exit(1)
-		return false, 0
+		Error.Fatalf("Cannot clone version %d: CloneVersion: %v\n", activeVersion, err)
 	}
-
-	Info.Printf("new working service version #%v", version.Number)
-	return true, version.Number
-
+	Info.Printf("New version %d created\n", version.Number)
+	return version.Number
 }
 
-func prefetchCondition(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
-
+func prefetchCondition(client fastly.Client, serviceID string, config TOMLConfig, version int) {
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create prefetch condition %q: ListConditions: %v\n", config.Prefetch.Name, err)
 	}
 	for _, condition := range conditions {
-		//do we have a condition name waf_prefetch, if not create one
-		//iterate through returned conditions check if any say waf_prefetch if not lets configure the service
 		if strings.EqualFold(condition.Name, config.Prefetch.Name) {
-			Error.Println("WAF Prefetch already exists with name: " + condition.Name + "..skipping creating conditions")
-			return false
+			Warning.Printf("Prefetch condition %q already exists, skipping\n", config.Prefetch.Name)
+			return
 		}
 	}
 	_, err = client.CreateCondition(&fastly.CreateConditionInput{
@@ -345,31 +321,24 @@ func prefetchCondition(client fastly.Client, serviceID string, version int, conf
 		Type:      config.Prefetch.Type,
 		Priority:  10,
 	})
-
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create prefetch condition %q: CreateCondition: %v\n", config.Prefetch.Name, err)
 	}
-
-	return true
+	Info.Printf("Prefetch condition %q created\n", config.Prefetch.Name)
 }
 
-func responseObject(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
+func responseObject(client fastly.Client, serviceID string, config TOMLConfig, version int) {
 	responses, err := client.ListResponseObjects(&fastly.ListResponseObjectsInput{
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create response object %q: ListResponseObjects: %v\n", config.Response.Name, err)
 	}
 	for _, response := range responses {
-		//iterate through returned responses check if any say WAF_Response if not lets configure the service
-		Info.Println(response.Name)
 		if strings.EqualFold(response.Name, config.Response.Name) {
-			Error.Println("WAF Response already exists with name: " + response.Name + "..skipping creating Response Object")
-			return false
+			Warning.Printf("Response object %q already exists, skipping\n", config.Response.Name)
+			return
 		}
 	}
 	_, err = client.CreateResponseObject(&fastly.CreateResponseObjectInput{
@@ -382,70 +351,41 @@ func responseObject(client fastly.Client, serviceID string, version int, config 
 		ContentType: config.Response.ContentType,
 	})
 	if err != nil {
-		Error.Fatal(err)
-		return false
+		Error.Fatalf("Cannot create response object %q: CreateResponseObject: %v\n", config.Response.Name, err)
 	}
-	return true
+	Info.Printf("Response object %q created\n", config.Response.Name)
 }
 
-//func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config tomlConfig)
-func vclSnippet(serviceID, apiKey string, version int, config TOMLConfig) bool {
-	//Work on Tags first
-	//API Endpoint to call for domain searches
-	//strconv.FormatInt(rule, 10)
-	apiCall := config.APIEndpoint + "/service/" + serviceID + "/version/" + strconv.Itoa(version) + "/snippet"
-
-	//get list of current snippets
-	resp, err := resty.R().
-		SetHeader("Accept", "application/vnd.api+json").
-		SetHeader("Fastly-Key", apiKey).
-		Get(apiCall)
-
-	//check if we had an issue with our call
+func vclSnippet(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+	snippets, err := client.ListSnippets(&fastly.ListSnippetsInput{
+		Service: serviceID,
+		Version: version,
+	})
 	if err != nil {
-		Error.Println("Error with API call: " + apiCall)
-		os.Exit(1)
+		Error.Fatalf("Cannot create VCL snippet %q: ListSnippets: %v\n", config.Vclsnippet.Name, err)
 	}
-
-	//unmarshal the response and extract the service id
-	body := Snippet{}
-	json.Unmarshal([]byte(resp.String()), &body)
-
-	//check if it has already been created
-	for _, snippet := range body {
+	for _, snippet := range snippets {
 		if snippet.Name == config.Vclsnippet.Name {
-			Warning.Println(config.Vclsnippet.Name + " already exists not creating a new one")
-			return false
+			Warning.Printf("VCL snippet %q already exists, skipping\n", config.Vclsnippet.Name)
+			return
 		}
 	}
-
-	//otherwise lets create one
-	resp, err = resty.R().
-		SetHeader("Accept", "application/json").
-		SetHeader("Fastly-Key", apiKey).
-		SetHeader("Content-Type", "application/x-www-form-urlencoded").
-		SetBody(`name=` + config.Vclsnippet.Name + `&type=` + config.Vclsnippet.Type + `&priority=` + strconv.Itoa(config.Vclsnippet.Priority) + `&dynamic=` + strconv.Itoa(config.Vclsnippet.Dynamic) + `&content=` + config.Vclsnippet.Content).
-		Post(apiCall)
-
-	//check if we had an issue with our call
+	_, err = client.CreateSnippet(&fastly.CreateSnippetInput{
+		Service:  serviceID,
+		Version:  version,
+		Name:     config.Vclsnippet.Name,
+		Priority: config.Vclsnippet.Priority,
+		Dynamic:  config.Vclsnippet.Dynamic,
+		Content:  config.Vclsnippet.Content,
+		Type:     config.Vclsnippet.Type,
+	})
 	if err != nil {
-		Error.Println("Error with API call: " + apiCall)
-		os.Exit(1)
+		Error.Fatalf("Cannot create VCL snippet %q: CreateSnippet: %v\n", config.Vclsnippet.Name, err)
 	}
-
-	if resp.Status() == "200 OK" {
-		return true
-	}
-
-	Error.Println("Could not add dynamic VCL snippet Fastly_WAF_Snippet the response was: ", resp.String())
-	return false
-
+	Info.Printf("VCL snippet %q created\n", config.Vclsnippet.Name)
 }
 
-// FastlyLogging configures the logging endpoints for the customer
-func FastlyLogging(client fastly.Client, serviceID string, version int, config TOMLConfig) bool {
-	//add logging logic to service
-	// create req logging endpoint
+func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, version int) {
 	_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
 		Service:       serviceID,
 		Version:       version,
@@ -460,20 +400,14 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		FormatVersion: 2,
 		MessageType:   "blank",
 	})
-
 	switch {
 	case err == nil:
-		Info.Println("Created request logging endpoint: " + config.Weblog.Name)
-
+		Info.Printf("Logging endpoint %q created\n", config.Weblog.Name)
 	case strings.Contains(err.Error(), "Duplicate record"):
-		Info.Println("Request logging endpoint " + config.Weblog.Name + " already exists. Skipping.")
-
+		Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Weblog.Name)
 	default:
-		fmt.Print(err)
-		return false
+		Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Weblog.Name, err)
 	}
-
-	// create waf logging endpoint
 	_, err = client.CreateSyslog(&fastly.CreateSyslogInput{
 		Service:       serviceID,
 		Version:       version,
@@ -489,23 +423,17 @@ func FastlyLogging(client fastly.Client, serviceID string, version int, config T
 		MessageType:   "blank",
 		Placement:     "waf_debug",
 	})
-
 	switch {
 	case err == nil:
-		Info.Println("Created WAF logging endpoint: " + config.Waflog.Name)
-
+		Info.Printf("Logging endpoint %q created\n", config.Waflog.Name)
 	case strings.Contains(err.Error(), "Duplicate record"):
-		Info.Println("WAF logging endpoint " + config.Waflog.Name + " already exists. Skipping.")
-
+		Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Waflog.Name)
 	default:
-		fmt.Print(err)
-		return false
+		Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Waflog.Name, err)
 	}
-
-	return true
 }
 
-func wafContainer(client fastly.Client, serviceID string, version int, config TOMLConfig) (bool, string) {
+func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
 	waf, err := client.CreateWAF(&fastly.CreateWAFInput{
 		Service:           serviceID,
 		Version:           version,
@@ -513,16 +441,13 @@ func wafContainer(client fastly.Client, serviceID string, version int, config TO
 		Response:          config.Response.Name,
 	})
 	if err != nil {
-		Error.Fatal(err)
-		return false, waf.ID
+		Error.Fatalf("Cannot create WAF: CreateWAF: %v\n", err)
 	}
-
-	Info.Printf("WAF created with ID: %v", waf.ID)
-	return true, waf.ID
-
+	Info.Printf("WAF %q created\n", waf.ID)
+	return waf.ID
 }
 
-func createOWASP(client fastly.Client, serviceID, wafID string, version int, config TOMLConfig) {
+func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, wafID string) {
 	var created bool
 	var err error
 	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
@@ -608,7 +533,7 @@ func createOWASP(client fastly.Client, serviceID, wafID string, version int, con
 }
 
 // DeleteLogsCall removes logging endpoints
-func DeleteLogsCall(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) bool {
+func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, version int) bool {
 
 	err := client.DeleteSyslog(&fastly.DeleteSyslogInput{
 		Service: serviceID,
@@ -693,7 +618,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 	for index, waf := range wafs {
 
 		//remove WAF Logging
-		result := DeleteLogsCall(client, serviceID, apiKey, config, version)
+		result := DeleteLogsCall(client, serviceID, config, version)
 		Info.Printf("Deleting WAF #%v Logging", index+1)
 		if !result {
 			Error.Printf("Deleting WAF #%v Logging: %s", index+1, err)
@@ -754,48 +679,20 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 	return true
 }
 
-func provisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) string {
+func provisionWAF(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
+	prefetchCondition(client, serviceID, config, version)
 
-	//create new conditions
-	if prefetchCondition(client, serviceID, version, config) {
-		Info.Println("successfully created prefetch condition: WAF_Prefetch")
-	} else {
-		Error.Printf("Issue creating prefetch condition..")
-	}
+	responseObject(client, serviceID, config, version)
 
-	//create response object
-	if responseObject(client, serviceID, version, config) {
-		Info.Println("successfully created response object: WAF_Response")
-	} else {
-		Error.Printf("Issue creating response object..")
-	}
+	vclSnippet(client, serviceID, config, version)
 
-	//create VCL Snippet
-	if vclSnippet(serviceID, apiKey, version, config) {
-		Info.Println("successfully created vcl snippet: Fastly_WAF_Snippet")
-	} else {
-		Error.Printf("Issue creating vcl snippet..")
-	}
+	wafID := wafContainer(client, serviceID, config, version)
 
-	//create WAF container
-	wafContainerStatus, wafID := wafContainer(client, serviceID, version, config)
-	if wafContainerStatus {
-		Info.Println("successfully created WAF container")
-	} else {
-		Error.Printf("Issue creating WAF container..")
-		os.Exit(1)
-	}
+	createOWASP(client, serviceID, config, wafID)
 
-	//set OWASP parameters
-	createOWASP(client, serviceID, wafID, version, config)
-
-	//set logging parameters
-	if FastlyLogging(client, serviceID, version, config) {
-		Info.Println("successfully created logging settings")
-	} else {
-		Error.Printf("Fatal issue creating logging settings..")
-		os.Exit(1)
-	}
+	// In order to create the logging endpoints WAF must be
+	// created first. ¯\_(ツ)_/¯
+	fastlyLogging(client, serviceID, config, version)
 
 	return wafID
 }
@@ -818,7 +715,7 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 
 }
 
-func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) bool {
+func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) bool {
 
 	for _, publisher := range config.Publisher {
 
@@ -917,7 +814,7 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly
 
 }
 
-func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
+func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 	//Work on Tags first
 	//API Endpoint to call for domain searches
 	apiCall := apiEndpoint + "/wafs/tags"
@@ -1000,7 +897,7 @@ func changeStatus(apiEndpoint, apiKey, wafID, status string) {
 
 }
 
-func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
+func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 	//implement individual rule management here
 	for _, rule := range config.Rules {
 
@@ -1033,7 +930,7 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cli
 }
 
 // DefaultRuleDisabled disables rule IDs defined in the configuration file
-func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, config TOMLConfig) {
+func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 
 	//implement individual rule management here
 	for _, rule := range config.DisabledRules {
@@ -1915,43 +1812,21 @@ func main() {
 		Error.Fatal(err)
 	}
 
-	//====================================
-	/*still need to implement the following:
-	if *emergency {
-		emergencyConfig()
-	}
-
-	if *ssl {
-		sslConfig()
-	}
-	*/
-
-	//====================================
-
 	//get currently activeVersion to be used
-	activeVersion := getActiveVersion(*client, *serviceID, *apiKey, config)
+	activeVersion := getActiveVersion(*client, *serviceID)
 
 	// add logs only to a service
 	if *logOnly {
 
 		Info.Println("Adding logging endpoints only")
 
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		//create VCL Snippet
-		if vclSnippet(*serviceID, *apiKey, version, config) {
-			Info.Println("successfully created vcl snippet: Fastly_WAF_Snippet")
-		} else {
-			Error.Printf("Issue creating vcl snippet..")
-		}
+		vclSnippet(*client, *serviceID, config, version)
 
 		//set logging parameters
-		if FastlyLogging(*client, *serviceID, version, config) {
-			Info.Println("successfully created logging settings")
-		} else {
-			Error.Printf("Fatal issue creating logging settings..")
-			os.Exit(1)
-		}
+		fastlyLogging(*client, *serviceID, config, version)
 
 		if *withShielding {
 			Info.Printf("WAF enabled with Shielding, adding logging condition")
@@ -1971,7 +1846,7 @@ func main() {
 	}
 	// check if is a de-provisioning call
 	if *deprovision {
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
 		if result {
@@ -1987,12 +1862,10 @@ func main() {
 
 	// check if is a delete logs parameter was called
 	if *deleteLogs {
-
-		//clone current version
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		//delete the logs
-		result := DeleteLogsCall(*client, *serviceID, *apiKey, config, version)
+		result := DeleteLogsCall(*client, *serviceID, config, version)
 
 		if result {
 			Info.Printf("Successfully deleted logging endpint %s and %s in Service ID %s. Remember to activate version %v!", config.Weblog.Name, config.Waflog.Name, *serviceID, version)
@@ -2063,7 +1936,7 @@ func main() {
 			case *tags != "":
 				Info.Println("Editing Tags")
 				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2076,7 +1949,7 @@ func main() {
 			case *publishers != "":
 				Info.Println("Editing Publishers")
 				//Publisher management
-				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2089,7 +1962,7 @@ func main() {
 			case *rules != "":
 				Info.Println("Editing Rules")
 				//rule management
-				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2101,7 +1974,7 @@ func main() {
 
 			case *editOWASP:
 				Info.Printf("Editing OWASP settings for WAF #%v", index+1)
-				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
+				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2114,8 +1987,7 @@ func main() {
 			case *withPX:
 				Info.Printf("WAF enabled with PerimeterX, adding logging condition")
 
-				//clone current version
-				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+				version := cloneVersion(*client, *serviceID, activeVersion)
 
 				WithPXCondition(*client, *serviceID, version, config)
 
@@ -2123,7 +1995,7 @@ func main() {
 				Info.Printf("WAF enabled with shielding, adding logging condition")
 
 				//clone current version
-				_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+				version := cloneVersion(*client, *serviceID, activeVersion)
 
 				WithShieldingCondition(*client, *serviceID, version, config)
 
@@ -2139,13 +2011,13 @@ func main() {
 
 			case *provision:
 				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//rule management
-				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//publisher management
-				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, *client, config)
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//OWASP
-				createOWASP(*client, *serviceID, waf.ID, activeVersion, config)
+				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2170,22 +2042,22 @@ func main() {
 		Warning.Println("Provisioning a new WAF on Service ID: " + *serviceID)
 
 		//clone current version
-		_, version := cloneVersion(*client, *serviceID, *apiKey, config, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion)
 
 		//provision a new WAF service
-		wafID := provisionWAF(*client, *serviceID, *apiKey, config, version)
+		wafID := provisionWAF(*client, *serviceID, config, version)
 
 		//publisher management
-		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//tags management
-		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//rule management
-		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//Default Disabled
-		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, *client, config)
+		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		if *withShielding {
 			Info.Printf("WAF enabled with Shielding, adding logging condition")
