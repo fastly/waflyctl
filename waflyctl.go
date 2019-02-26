@@ -814,7 +814,7 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLCo
 
 }
 
-func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
+func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig, forceStatus bool) {
 	//Work on Tags first
 	//API Endpoint to call for domain searches
 	apiCall := apiEndpoint + "/wafs/tags"
@@ -851,7 +851,7 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig)
 			SetHeader("Accept", "application/vnd.api+json").
 			SetHeader("Fastly-Key", apiKey).
 			SetHeader("Content-Type", "application/vnd.api+json").
-			SetBody(`{"data": {"attributes": {"status": "` + config.Action + `","name": "` + tag + `","force": true},"id": "` + wafID + `","type": "rule_status"}}`).
+			SetBody(fmt.Sprintf(`{"data": {"attributes": {"status": "%s", "name": "%s", "force": %t}, "id": "%s", "type": "rule_status"}}`, config.Action, tag, forceStatus, wafID)).
 			Post(apiCall)
 
 		//check if we had an issue with our call
@@ -1721,6 +1721,7 @@ var (
 	configurationSet = app.Flag("configuration-set", "Changes WAF configuration set to the provided one.").String()
 	deprovision      = app.Flag("delete", "Remove a WAF configuration created with waflyctl.").Bool()
 	deleteLogs       = app.Flag("delete-logs", "When set removes WAF logging configuration.").Bool()
+	forceStatus      = app.Flag("force-status", "Force all rules (inc. disabled) to update for the given tag.").Bool()
 	logOnly          = app.Flag("enable-logs-only", "Add logging configuration only to the service. No other changes will be made. Can be used together with --with-perimeterx").Bool()
 	listAllRules     = app.Flag("list-all-rules", "List all rules available on the Fastly platform for a given configuration set.").PlaceHolder("CONFIGURATION-SET").String()
 	listConfigSet    = app.Flag("list-configuration-sets", "List all configuration sets and their status.").Bool()
@@ -1936,7 +1937,7 @@ func main() {
 			case *tags != "":
 				Info.Println("Editing Tags")
 				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 
 				//patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
@@ -2011,7 +2012,7 @@ func main() {
 
 			case *provision:
 				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 				//rule management
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//publisher management
@@ -2051,7 +2052,7 @@ func main() {
 		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//tags management
-		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
+		tagsConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config, *forceStatus)
 
 		//rule management
 		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
