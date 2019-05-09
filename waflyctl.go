@@ -307,24 +307,24 @@ func prefetchCondition(client fastly.Client, serviceID string, config TOMLConfig
 	if err != nil {
 		Error.Fatalf("Cannot create prefetch condition %q: ListConditions: %v\n", config.Prefetch.Name, err)
 	}
-	for _, condition := range conditions {
-		if strings.EqualFold(condition.Name, config.Prefetch.Name) {
-			Warning.Printf("Prefetch condition %q already exists, skipping\n", config.Prefetch.Name)
-			return
+
+	if !conditionExists(conditions, config.Prefetch.Name) {
+		_, err = client.CreateCondition(&fastly.CreateConditionInput{
+			Service:   serviceID,
+			Version:   version,
+			Name:      config.Prefetch.Name,
+			Statement: config.Prefetch.Statement,
+			Type:      config.Prefetch.Type,
+			Priority:  10,
+		})
+		if err != nil {
+			Error.Fatalf("Cannot create prefetch condition %q: CreateCondition: %v\n", config.Prefetch.Name, err)
 		}
+		Info.Printf("Prefetch condition %q created\n", config.Prefetch.Name)
+	} else {
+		Warning.Printf("Prefetch condition %q already exists, skipping\n", config.Prefetch.Name)
 	}
-	_, err = client.CreateCondition(&fastly.CreateConditionInput{
-		Service:   serviceID,
-		Version:   version,
-		Name:      config.Prefetch.Name,
-		Statement: config.Prefetch.Statement,
-		Type:      config.Prefetch.Type,
-		Priority:  10,
-	})
-	if err != nil {
-		Error.Fatalf("Cannot create prefetch condition %q: CreateCondition: %v\n", config.Prefetch.Name, err)
-	}
-	Info.Printf("Prefetch condition %q created\n", config.Prefetch.Name)
+
 }
 
 func responseObject(client fastly.Client, serviceID string, config TOMLConfig, version int) {
@@ -535,6 +535,7 @@ func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, wafI
 // DeleteLogsCall removes logging endpoints
 func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, version int) bool {
 
+	Info.Printf("Deleting Web logging endpoint: %q\n", config.Weblog.Name)
 	err := client.DeleteSyslog(&fastly.DeleteSyslogInput{
 		Service: serviceID,
 		Version: version,
@@ -544,8 +545,8 @@ func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, v
 		fmt.Print(err)
 		return false
 	}
-	Info.Println("Deleted Web logging endpoint: " + config.Weblog.Name)
 
+	Info.Printf("Deleting WAF logging endpoint: %q\n", config.Waflog.Name)
 	err = client.DeleteSyslog(&fastly.DeleteSyslogInput{
 		Service: serviceID,
 		Version: version,
@@ -555,39 +556,60 @@ func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, v
 		fmt.Print(err)
 		return false
 	}
-	Info.Println("Deleted Waf logging endpoint: " + config.Weblog.Name)
 
 	//first find if we have any PX conditions
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
 	}
-	for _, condition := range conditions {
-		//do we have a condition name waf_prefetch, if not create one
-		//iterate through returned conditions check if any say waf_prefetch if not lets configure the service
-		if strings.EqualFold(condition.Name, "waf-soc-with-px") {
 
-			err = client.DeleteCondition(&fastly.DeleteConditionInput{
-				Service: serviceID,
-				Version: version,
-				Name:    "waf-soc-with-px",
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-			Info.Println("WAF PerimeterX logging condition: 'waf-soc-with-px' deleted")
-
+	//remove PerimeterX logging condition (if exists)
+	if conditionExists(conditions, "waf-soc-with-px") {
+		Info.Println("Deleting PerimeterX logging condition: 'waf-soc-with-px'")
+		err = client.DeleteCondition(&fastly.DeleteConditionInput{
+			Service: serviceID,
+			Version: version,
+			Name:    "waf-soc-with-px",
+		})
+		if err != nil {
+			Error.Fatal(err)
+			return false
 		}
+
+	}
+
+	//remove shielding logging condition (if exists)
+	if conditionExists(conditions, "waf-soc-with-shielding") {
+		Info.Println("Deleting Shielding logging condition: 'waf-soc-with-shielding'")
+		err = client.DeleteCondition(&fastly.DeleteConditionInput{
+			Service: serviceID,
+			Version: version,
+			Name:    "waf-soc-with-shielding",
+		})
+		if err != nil {
+			Error.Print(err)
+			return false
+		}
+
 	}
 
 	return true
 
+}
+
+// conditionExists iterates through the given slice of conditions and returns
+// whether the given name exists in the collection
+func conditionExists(conds []*fastly.Condition, name string) bool {
+	for _, c := range conds {
+		if strings.EqualFold(c.Name, name) {
+			return true
+		}
+	}
+	return false
 }
 
 // DeprovisionWAF removes a WAF from a service
@@ -611,7 +633,18 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 	}
 
 	if len(wafs) == 0 {
-		Error.Printf("No WAF object exists in current service %s version #%v .. exiting", serviceID, version)
+		Error.Printf("No WAF object exists in current service %s version #%v .. exiting\n", serviceID, version)
+		return false
+	}
+
+	//get list of conditions
+	//first find if we have any PX conditions
+	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
+		Service: serviceID,
+		Version: version,
+	})
+	if err != nil {
+		Error.Fatal(err)
 		return false
 	}
 
@@ -619,12 +652,12 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 
 		//remove WAF Logging
 		result := DeleteLogsCall(client, serviceID, config, version)
-		Info.Printf("Deleting WAF #%v Logging", index+1)
+		Info.Printf("Deleting WAF #%v Logging\n", index+1)
 		if !result {
-			Error.Printf("Deleting WAF #%v Logging: %s", index+1, err)
+			Error.Printf("Deleting WAF #%v Logging: %s\n", index+1, err)
 		}
 
-		Info.Printf("Deleting WAF #%v Container", index+1)
+		Info.Printf("Deleting WAF #%v Container\n", index+1)
 		//remove WAF container
 		err = client.DeleteWAF(&fastly.DeleteWAFInput{
 			Service: serviceID,
@@ -637,7 +670,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 		}
 
 		//remove WAF Response Object
-		Info.Printf("Deleting WAF #%v Response Condition", index+1)
+		Info.Printf("Deleting WAF #%v Response Object\n", index+1)
 		err = client.DeleteResponseObject(&fastly.DeleteResponseObjectInput{
 			Service: serviceID,
 			Version: version,
@@ -648,20 +681,22 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 			return false
 		}
 
-		//remove WAF Prefetch condition
-		Info.Printf("Deleting WAF #%v Prefetch Condition", index+1)
-		err = client.DeleteCondition(&fastly.DeleteConditionInput{
-			Service: serviceID,
-			Version: version,
-			Name:    "WAF_Prefetch",
-		})
-		if err != nil {
-			Error.Print(err)
-			return false
+		//remove WAF Prefetch condition (if exists)
+		if conditionExists(conditions, "WAF_Prefetch") {
+			Info.Printf("Deleting WAF #%v Prefetch Condition\n", index+1)
+			err = client.DeleteCondition(&fastly.DeleteConditionInput{
+				Service: serviceID,
+				Version: version,
+				Name:    "WAF_Prefetch",
+			})
+			if err != nil {
+				Error.Print(err)
+				return false
+			}
 		}
 
 		//remove VCL Snippet
-		Info.Printf("Deleting WAF #%v VCL Snippet", index+1)
+		Info.Printf("Deleting WAF #%v VCL Snippet\n", index+1)
 		apiCall := config.APIEndpoint + "/service/" + serviceID + "/version/" + strconv.Itoa(version) + "/snippet/" + config.Vclsnippet.Name
 		//get list of current snippets
 		_, err := resty.R().
@@ -671,7 +706,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 
 		//check if we had an issue with our call
 		if err != nil {
-			Error.Printf("Deleting WAF #%v VCL Snippet", index+1)
+			Error.Printf("Deleting WAF #%v VCL Snippet\n", index+1)
 		}
 
 	}
@@ -710,7 +745,7 @@ func validateVersion(client fastly.Client, serviceID string, version int) bool {
 		Error.Println("Version invalid")
 		return false
 	}
-	Info.Printf("Config Version %v validated. Remember to activate it", version)
+	Info.Printf("Config Version %v validated. Remember to activate it\n", version)
 	return true
 
 }
@@ -751,12 +786,12 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLCo
 		currentpage := body.Meta.CurrentPage
 		totalpages := body.Meta.TotalPages
 
-		Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+		Info.Printf("Read Total Pages: %d with %d rules\n", body.Meta.TotalPages, body.Meta.RecordCount)
 
 		// iterate through pages collecting all rules
 		for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
-			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+			Info.Printf("Reading page: %d out of %d\n", currentpage, totalpages)
 			//set our API call
 			apiCall := apiEndpoint + "/wafs/rules?filter[publisher]=" + publisher + "&page[number]=" + strconv.Itoa(currentpage)
 
@@ -801,9 +836,9 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLCo
 
 				//check if our response was ok
 				if resp.Status() == "200 OK" {
-					Info.Printf("Rule %s was configured in the WAF with action %s", r.ID, config.Action)
+					Info.Printf("Rule %s was configured in the WAF with action %s\n", r.ID, config.Action)
 				} else {
-					Error.Println("Could not set status: "+config.Action+" on rule tag: "+r.ID+" the response was: ", resp.String())
+					Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, r.ID, resp.String())
 				}
 			}
 		}
@@ -824,7 +859,7 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 	for _, tag := range config.Tags {
 
 		resp, err := resty.R().
-			SetQueryString("filter[name]="+tag+"&include=rules").
+			SetQueryString(fmt.Sprintf("filter[name]=%s&include=rules", tag)).
 			SetHeader("Accept", "application/vnd.api+json").
 			SetHeader("Fastly-Key", apiKey).
 			Get(apiCall)
@@ -840,7 +875,7 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 		json.Unmarshal([]byte(resp.String()), &body)
 
 		if len(body.Data) == 0 {
-			Error.Println("Could not find any rules with tag: " + tag + " please make sure it exists..moving to the next tag")
+			Error.Printf("Could not find any rules with tag: %s please make sure it exists..moving to the next tag\n", tag)
 			continue
 		}
 
@@ -863,9 +898,9 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf(config.Action+" %d rule on the WAF for tag: "+tag, len(body.Data))
+			Info.Printf("%s %d rule on the WAF for tag: %s\n", config.Action, len(body.Data), tag)
 		} else {
-			Error.Println("Could not set status: "+config.Action+" on rule tag: "+tag+" the response was: ", resp.String())
+			Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, tag, resp.String())
 		}
 	}
 }
@@ -889,7 +924,7 @@ func changeStatus(apiEndpoint, apiKey, wafID, status string) {
 
 	//check if our response was ok
 	if resp.Status() == "202 Accepted" {
-		Info.Printf("WAF %s status was changed to %s", wafID, status)
+		Info.Printf("WAF %s status was changed to %s\n", wafID, status)
 	} else {
 		Error.Println("Could not change the status of WAF " + wafID + " to " + status)
 		Error.Println("We received the following status code: " + resp.Status() + " with response from the API: " + resp.String())
@@ -922,9 +957,9 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig
 
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf("Rule %s was configured in the WAF with action %s", ruleID, config.Action)
+			Info.Printf("Rule %s was configured in the WAF with action %s\n", ruleID, config.Action)
 		} else {
-			Error.Println("Could not set status: "+config.Action+" on rule tag: "+ruleID+" the response was: ", resp.String())
+			Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, ruleID, resp.String())
 		}
 	}
 }
@@ -956,9 +991,9 @@ func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TO
 
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf("Rule %s was configured in the WAF with action disabled via disabledrules parameter", ruleID)
+			Info.Printf("Rule %s was configured in the WAF with action disabled via disabledrules parameter\n", ruleID)
 		} else {
-			Error.Println("Could not set status: "+config.Action+" on rule tag: "+ruleID+" the response was: ", resp.String())
+			Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, ruleID, resp.String())
 		}
 	}
 }
@@ -970,57 +1005,52 @@ func WithPXCondition(client fastly.Client, serviceID string, version int, config
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
 	}
-	for _, condition := range conditions {
-		//do we have a condition name waf_prefetch, if not create one
-		//iterate through returned conditions check if any say waf_prefetch if not lets configure the service
-		if strings.EqualFold(condition.Name, "waf-soc-with-px") {
-			Error.Println("WAF PerimeterX logging condition already exists with name: " + condition.Name + "..skipping creating conditions")
+
+	cname := "waf-soc-with-px"
+
+	//create the logging condition if neccessary
+	if !conditionExists(conditions, cname) {
+		Info.Printf("WAF enabled with PerimeterX, creating logging condition: %q\n", cname)
+		_, err = client.CreateCondition(&fastly.CreateConditionInput{
+			Service:   serviceID,
+			Version:   version,
+			Name:      cname,
+			Statement: "req.http.x-request-id",
+			Type:      "RESPONSE",
+			Priority:  10,
+		})
+		if err != nil {
+			Error.Fatal(err)
 			return false
 		}
-	}
-
-	Info.Printf("WAF enabled with PerimeterX, creating logging condition: waf-soc-with-px")
-	_, err = client.CreateCondition(&fastly.CreateConditionInput{
-		Service:   serviceID,
-		Version:   version,
-		Name:      "waf-soc-with-px",
-		Statement: "req.http.x-request-id",
-		Type:      "RESPONSE",
-		Priority:  10,
-	})
-
-	if err != nil {
-		Error.Fatal(err)
-		return false
+	} else {
+		Warning.Printf("WAF PerimeterX logging condition %q already exists, skipping\n", cname)
 	}
 
 	//update syslog endpoints
-	Info.Printf("WAF enabled with PerimeterX, applying condition 'waf-soc-with-px' to web logs %s", config.Weblog.Name)
+	Info.Printf("WAF enabled with PerimeterX, applying condition %q to web logs %q\n", cname, config.Weblog.Name)
 	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
 		Service:           serviceID,
 		Version:           version,
 		Name:              config.Weblog.Name,
-		ResponseCondition: "waf-soc-with-px",
+		ResponseCondition: cname,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
 	}
 
-	Info.Printf("WAF enabled with PerimeterX, applying condition 'waf-soc-with-px' to waf logs %s", config.Waflog.Name)
+	Info.Printf("WAF enabled with PerimeterX, applying condition %q to waf logs %q\n", cname, config.Waflog.Name)
 	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
 		Service:           serviceID,
 		Version:           version,
 		Name:              config.Waflog.Name,
-		ResponseCondition: "waf-soc-with-px",
+		ResponseCondition: cname,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
@@ -1037,57 +1067,51 @@ func WithShieldingCondition(client fastly.Client, serviceID string, version int,
 		Service: serviceID,
 		Version: version,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
 	}
-	for _, condition := range conditions {
-		//do we have a condition name waf-soc-with-shielding, if not create one
-		//iterate through returned conditions check if any say waf-soc-with-shielding if not lets configure the service
-		if strings.EqualFold(condition.Name, "waf-soc-with-shielding") {
-			Error.Println("WAF with shielding logging condition already exists with name: " + condition.Name + "..skipping creating conditions")
+
+	cname := "waf-soc-with-shielding"
+
+	if !conditionExists(conditions, cname) {
+		Info.Printf("WAF enabled with shielding, creating logging condition: %q\n", cname)
+		_, err = client.CreateCondition(&fastly.CreateConditionInput{
+			Service:   serviceID,
+			Version:   version,
+			Name:      cname,
+			Statement: "waf.executed || fastly_info.state !~ \"(MISS|PASS)\"",
+			Type:      "RESPONSE",
+			Priority:  10,
+		})
+		if err != nil {
+			Error.Fatal(err)
 			return false
 		}
-	}
-
-	Info.Printf("WAF enabled with shielding, creating logging condition: waf-soc-with-shielding")
-	_, err = client.CreateCondition(&fastly.CreateConditionInput{
-		Service:   serviceID,
-		Version:   version,
-		Name:      "waf-soc-with-shielding",
-		Statement: "waf.executed || fastly_info.state !~ \"(MISS|PASS)\"",
-		Type:      "RESPONSE",
-		Priority:  10,
-	})
-
-	if err != nil {
-		Error.Fatal(err)
-		return false
+	} else {
+		Warning.Printf("WAF with shielding logging condition %q already exists, skipping\n", cname)
 	}
 
 	//update syslog endpoints
-	Info.Printf("WAF enabled with shielding, applying condition 'waf-soc-with-shielding' to web logs %s", config.Weblog.Name)
+	Info.Printf("WAF enabled with shielding, applying condition %q to web logs %q\n", cname, config.Weblog.Name)
 	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
 		Service:           serviceID,
 		Version:           version,
 		Name:              config.Weblog.Name,
-		ResponseCondition: "waf-soc-with-shielding",
+		ResponseCondition: cname,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
 	}
 
-	Info.Printf("WAF enabled with shielding, applying condition 'waf-soc-with-shielding' to waf logs %s", config.Waflog.Name)
+	Info.Printf("WAF enabled with shielding, applying condition %q to waf logs %q\n", cname, config.Waflog.Name)
 	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
 		Service:           serviceID,
 		Version:           version,
 		Name:              config.Waflog.Name,
-		ResponseCondition: "waf-soc-with-shielding",
+		ResponseCondition: cname,
 	})
-
 	if err != nil {
 		Error.Fatal(err)
 		return false
@@ -1173,12 +1197,12 @@ func getConfigurationSets(apiEndpoint, apiKey string) bool {
 	currentpage := body.Meta.CurrentPage
 	totalpages := body.Meta.TotalPages
 
-	Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+	Info.Printf("Read Total Pages: %d with %d rules\n", body.Meta.TotalPages, body.Meta.RecordCount)
 
 	// iterate through pages collecting all rules
 	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
-		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+		Info.Printf("Reading page: %d out of %d\n", currentpage, totalpages)
 		//set our API call
 		apiCall := apiEndpoint + "/wafs/configuration_sets?page[number]=" + strconv.Itoa(currentpage)
 
@@ -1277,12 +1301,12 @@ func getRules(apiEndpoint, apiKey, serviceID, wafID string) bool {
 	currentpage := body.Meta.CurrentPage
 	totalpages := body.Meta.TotalPages
 
-	Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+	Info.Printf("Read Total Pages: %d with %d rules\n", body.Meta.TotalPages, body.Meta.RecordCount)
 
 	// iterate through pages collecting all rules
 	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
-		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+		Info.Printf("Reading page: %d out of %d\n", currentpage, totalpages)
 		//set our API call
 		apiCall := apiEndpoint + "/service/" + serviceID + "/wafs/" + wafID + "/rule_statuses?page[number]=" + strconv.Itoa(currentpage)
 
@@ -1383,12 +1407,12 @@ func getAllRules(apiEndpoint, apiKey, configID string) bool {
 		currentpage := body.Meta.CurrentPage
 		totalpages := body.Meta.TotalPages
 
-		Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+		Info.Printf("Read Total Pages: %d with %d rules\n", body.Meta.TotalPages, body.Meta.RecordCount)
 
 		// iterate through pages collecting all rules
 		for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
-			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+			Info.Printf("Reading page: %d out of %d\n", currentpage, totalpages)
 			//set our API call
 			apiCall := apiEndpoint + "/wafs/rules?page[number]=" + strconv.Itoa(currentpage)
 
@@ -1475,12 +1499,12 @@ func getAllRules(apiEndpoint, apiKey, configID string) bool {
 		currentpage := body.Meta.CurrentPage
 		totalpages := body.Meta.TotalPages
 
-		Info.Printf("Read Total Pages: %d with %d rules", body.Meta.TotalPages, body.Meta.RecordCount)
+		Info.Printf("Read Total Pages: %d with %d rules\n", body.Meta.TotalPages, body.Meta.RecordCount)
 
 		// iterate through pages collecting all rules
 		for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
-			Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+			Info.Printf("Reading page: %d out of %d\n", currentpage, totalpages)
 			//set our API call
 			apiCall := apiEndpoint + "/wafs/rules?filter[configuration_set_id]=" + configID + "&page[number]=" + strconv.Itoa(currentpage)
 
@@ -1547,7 +1571,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	//validate the output path
 	d := filepath.Dir(bpath)
 	if _, err := os.Stat(d); os.IsNotExist(err) {
-		Error.Printf("Output path does not exist: %s", d)
+		Error.Printf("Output path does not exist: %s\n", d)
 		return false
 	}
 
@@ -1584,12 +1608,12 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	perpage := body.Meta.PerPage
 	totalpages := body.Meta.TotalPages
 
-	Info.Printf("Backing up %d rules", body.Meta.RecordCount)
+	Info.Printf("Backing up %d rules\n", body.Meta.RecordCount)
 
 	// iterate through pages collecting all rules
 	for currentpage := currentpage + 1; currentpage <= totalpages; currentpage++ {
 
-		Info.Printf("Reading page: %d out of %d", currentpage, totalpages)
+		Info.Printf("Reading page: %d out of %d\n", currentpage, totalpages)
 		//set our API call
 		apiCall := fmt.Sprintf("%s/service/%s/wafs/%s/rule_statuses?page[size]=%d&page[number]=%d", apiEndpoint, serviceID, wafID, perpage, currentpage)
 
@@ -1830,12 +1854,12 @@ func main() {
 		fastlyLogging(*client, *serviceID, config, version)
 
 		if *withShielding {
-			Info.Printf("WAF enabled with Shielding, adding logging condition")
+			Info.Printf("WAF enabled with Shielding, adding logging condition\n")
 			WithShieldingCondition(*client, *serviceID, version, config)
 		}
 
 		if *withPX {
-			Info.Printf("WAF enabled with PerimeterX, adding logging condition")
+			Info.Printf("WAF enabled with PerimeterX, adding logging condition\n")
 			WithPXCondition(*client, *serviceID, version, config)
 		}
 
@@ -1851,12 +1875,12 @@ func main() {
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
 		if result {
-			Info.Printf("Successfully deleted WAF on Service ID %s. Do not forget to activate version %v!", *serviceID, version)
-			Info.Printf("Completed")
+			Info.Printf("Successfully deleted WAF on Service ID %s. Do not forget to activate version %v!\n", *serviceID, version)
+			Info.Println("Completed")
 			os.Exit(0)
 		} else {
-			Error.Printf("Failed to delete WAF on Service ID %s..see above for details", *serviceID)
-			Info.Printf("Completed")
+			Error.Printf("Failed to delete WAF on Service ID %s..see above for details\n", *serviceID)
+			Info.Println("Completed")
 			os.Exit(1)
 		}
 	}
@@ -1869,17 +1893,17 @@ func main() {
 		result := DeleteLogsCall(*client, *serviceID, config, version)
 
 		if result {
-			Info.Printf("Successfully deleted logging endpint %s and %s in Service ID %s. Remember to activate version %v!", config.Weblog.Name, config.Waflog.Name, *serviceID, version)
-			Info.Printf("Completed")
+			Info.Printf("Successfully deleted logging endpint %s and %s in Service ID %s. Remember to activate version %v!\n", config.Weblog.Name, config.Waflog.Name, *serviceID, version)
+			Info.Println("Completed")
 			os.Exit(0)
 		} else {
-			Error.Printf("Failed to delete logging endpoints on Service ID %s..see above for details", *serviceID)
-			Info.Printf("Completed")
+			Error.Printf("Failed to delete logging endpoints on Service ID %s..see above for details\n", *serviceID)
+			Info.Println("Completed")
 			os.Exit(1)
 		}
 	}
 
-	Info.Printf("currently working with config version: %v.", activeVersion)
+	Info.Printf("currently working with config version: %v.\n", activeVersion)
 	Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
 	wafs, err := client.ListWAFs(&fastly.ListWAFsInput{
 		Service: *serviceID,
@@ -1899,21 +1923,21 @@ func main() {
 
 			//list configuration sets rules
 			case *listConfigSet:
-				Info.Printf("Listing all configuration sets")
+				Info.Println("Listing all configuration sets")
 				getConfigurationSets(config.APIEndpoint, *apiKey)
 				Info.Println("Completed")
 				os.Exit(0)
 
 			//list waf rules
 			case *listRules:
-				Info.Printf("Listing all rules for WAF ID: %s", waf.ID)
+				Info.Printf("Listing all rules for WAF ID: %s\n", waf.ID)
 				getRules(config.APIEndpoint, *apiKey, *serviceID, waf.ID)
 				Info.Println("Completed")
 				os.Exit(0)
 
 			//list all rules for a given configset
 			case *listAllRules != "":
-				Info.Printf("Listing all rules under configuration set ID: %s", *listAllRules)
+				Info.Printf("Listing all rules under configuration set ID: %s\n", *listAllRules)
 				configID := *listAllRules
 				getAllRules(config.APIEndpoint, *apiKey, configID)
 				Info.Println("Completed")
@@ -1921,7 +1945,7 @@ func main() {
 
 			//change a configuration set
 			case *configurationSet != "":
-				Info.Printf("Changing Configuration Set to: %s", *configurationSet)
+				Info.Printf("Changing Configuration Set to: %s\n", *configurationSet)
 				configID := *configurationSet
 				setConfigurationSet(waf.ID, configID, *client)
 				Info.Println("Completed")
@@ -1944,7 +1968,7 @@ func main() {
 					Info.Println("Rule set successfully patched")
 
 				} else {
-					Error.Printf("Issue patching ruleset see above error..")
+					Error.Println("Issue patching ruleset see above error..")
 				}
 
 			case *publishers != "":
@@ -1957,7 +1981,7 @@ func main() {
 					Info.Println("Rule set successfully patched")
 
 				} else {
-					Error.Printf("Issue patching ruleset see above error..")
+					Error.Println("Issue patching ruleset see above error..")
 				}
 
 			case *rules != "":
@@ -1970,11 +1994,11 @@ func main() {
 					Info.Println("Rule set successfully patched")
 
 				} else {
-					Error.Printf("Issue patching ruleset see above error..")
+					Error.Println("Issue patching ruleset see above error..")
 				}
 
 			case *editOWASP:
-				Info.Printf("Editing OWASP settings for WAF #%v", index+1)
+				Info.Printf("Editing OWASP settings for WAF #%v\n", index+1)
 				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
@@ -1982,18 +2006,18 @@ func main() {
 					Info.Println("Rule set successfully patched")
 
 				} else {
-					Error.Printf("Issue patching ruleset see above error..")
+					Error.Println("Issue patching ruleset see above error..")
 				}
 
 			case *withPX:
-				Info.Printf("WAF enabled with PerimeterX, adding logging condition")
+				Info.Println("WAF enabled with PerimeterX, adding logging condition")
 
 				version := cloneVersion(*client, *serviceID, activeVersion)
 
 				WithPXCondition(*client, *serviceID, version, config)
 
 			case *withShielding:
-				Info.Printf("WAF enabled with shielding, adding logging condition")
+				Info.Println("WAF enabled with shielding, adding logging condition")
 
 				//clone current version
 				version := cloneVersion(*client, *serviceID, activeVersion)
@@ -2002,7 +2026,7 @@ func main() {
 
 			//back up WAF rules locally
 			case *backup:
-				Info.Printf("Backing up WAF configuration")
+				Info.Println("Backing up WAF configuration")
 
 				bp := strings.Replace(*backupPath, "<service-id>", *serviceID, -1)
 
@@ -2025,7 +2049,7 @@ func main() {
 					Info.Println("Rule set successfully patched")
 
 				} else {
-					Error.Printf("Issue patching ruleset see above error..")
+					Error.Println("Issue patching ruleset see above error..")
 				}
 
 			default:
@@ -2040,7 +2064,7 @@ func main() {
 		}
 
 	} else if *provision {
-		Warning.Println("Provisioning a new WAF on Service ID: " + *serviceID)
+		Warning.Printf("Provisioning a new WAF on Service ID: %s\n", *serviceID)
 
 		//clone current version
 		version := cloneVersion(*client, *serviceID, activeVersion)
@@ -2061,12 +2085,12 @@ func main() {
 		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		if *withShielding {
-			Info.Printf("WAF enabled with Shielding, adding logging condition")
+			Info.Println("WAF enabled with Shielding, adding logging condition")
 			WithShieldingCondition(*client, *serviceID, version, config)
 		}
 
 		if *withPX {
-			Info.Printf("WAF enabled with PerimeterX, adding logging condition")
+			Info.Println("WAF enabled with PerimeterX, adding logging condition")
 			WithPXCondition(*client, *serviceID, version, config)
 		}
 
@@ -2082,7 +2106,7 @@ func main() {
 			Info.Println("Rule set successfully patched")
 
 		} else {
-			Error.Printf("Issue patching ruleset see above error..")
+			Error.Println("Issue patching ruleset see above error..")
 		}
 
 		//validate the config
