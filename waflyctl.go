@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/sethvargo/go-fastly/fastly"
+	"github.com/fastly/go-fastly/fastly"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/resty.v1"
 )
@@ -110,6 +110,7 @@ type owaspSettings struct {
 type WeblogSettings struct {
 	Name        string
 	Address     string
+	Hostname    string
 	Port        uint
 	Tlscacert   string
 	Tlshostname string
@@ -130,6 +131,7 @@ type VCLSnippetSettings struct {
 type WaflogSettings struct {
 	Name        string
 	Address     string
+	Hostname    string
 	Port        uint
 	Tlscacert   string
 	Tlshostname string
@@ -392,6 +394,7 @@ func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, ve
 		Version:       version,
 		Name:          config.Weblog.Name,
 		Address:       config.Weblog.Address,
+		Hostname:      config.Weblog.Hostname,
 		Port:          config.Weblog.Port,
 		UseTLS:        fastly.CBool(true),
 		IPV4:          config.Weblog.Address,
@@ -414,6 +417,7 @@ func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, ve
 		Version:       version,
 		Name:          config.Waflog.Name,
 		Address:       config.Waflog.Address,
+		Hostname:      config.Waflog.Hostname,
 		Port:          config.Waflog.Port,
 		UseTLS:        fastly.CBool(true),
 		IPV4:          config.Waflog.Address,
