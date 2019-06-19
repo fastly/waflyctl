@@ -1125,7 +1125,7 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 	if config.Weblog.Expiry > 0 {
 		cn = "waf-soc-logging-with-expiry"
 		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
-		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) > %d)", exp))
+		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) < %d)", exp))
 		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
 
 		if conditionExists(conditions, cn) {
