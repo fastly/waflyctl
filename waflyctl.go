@@ -289,7 +289,7 @@ func getActiveVersion(client fastly.Client, serviceID string) int {
 	return 0
 }
 
-func cloneVersion(client fastly.Client, serviceID string, activeVersion int) int {
+func cloneVersion(client fastly.Client, serviceID string, activeVersion int, comment string) int {
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
 		Service: serviceID,
 		Version: activeVersion,
@@ -297,7 +297,18 @@ func cloneVersion(client fastly.Client, serviceID string, activeVersion int) int
 	if err != nil {
 		Error.Fatalf("Cannot clone version %d: CloneVersion: %v\n", activeVersion, err)
 	}
-	Info.Printf("New version %d created\n", version.Number)
+	if comment == "" {
+		Info.Printf("New version %d created\n", version.Number)
+	} else {
+		client.UpdateVersion(&fastly.UpdateVersionInput{
+			Service: serviceID,
+			Version: version.Number,
+			Comment: comment,
+		})
+		Info.Printf("New version %d created. Comment: %s\n", version.Number, comment)
+
+	}
+
 	return version.Number
 }
 
@@ -1088,7 +1099,7 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 	if config.Weblog.Expiry > 0 {
 		cn = "waf-soc-logging-with-expiry"
 		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
-		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) > %d)", exp))
+		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) < %d)", exp))
 		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
 
 		//Check for existing
@@ -1802,6 +1813,7 @@ var (
 	weblogExpiry     = app.Flag("web-log-expiry", "The default expiry of the web-log condition, expressed in days from the current date-time.").Default("-1").Int()
 	withPX           = app.Flag("with-perimeterx", "Enable if the customer has PerimeterX enabled on the service as well as WAF. Helps fix null value logging.").Bool()
 	withShielding    = app.Flag("with-shielding", "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.").Bool()
+	addComment       = app.Flag("comment", "Add version comment when creating a new version.").String()
 )
 
 func main() {
@@ -1894,7 +1906,7 @@ func main() {
 
 		Info.Println("Adding logging endpoints only")
 
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//create VCL Snippet
 		vclSnippet(*client, *serviceID, config, version)
@@ -1913,7 +1925,7 @@ func main() {
 	}
 	// check if is a de-provisioning call
 	if *deprovision {
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
 		if result {
@@ -1929,7 +1941,7 @@ func main() {
 
 	// check if is a delete logs parameter was called
 	if *deleteLogs {
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//delete the logs
 		result := DeleteLogsCall(*client, *serviceID, config, version)
@@ -2053,7 +2065,7 @@ func main() {
 
 			case *withPX || *withShielding:
 				Info.Println("WAF enabled with Shielding or PerimeterX, setting logging conditions")
-				version := cloneVersion(*client, *serviceID, activeVersion)
+				version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 				AddLoggingCondition(*client, *serviceID, version, config, *withShielding, *withPX)
 				//validate the config
 				validateVersion(*client, *serviceID, activeVersion)
@@ -2099,7 +2111,7 @@ func main() {
 		Warning.Printf("Provisioning a new WAF on Service ID: %s\n", *serviceID)
 
 		//clone current version
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//provision a new WAF service
 		wafID := provisionWAF(*client, *serviceID, config, version)
