@@ -67,13 +67,13 @@ type TOMLConfig struct {
 
 // Backup is a backup of the rule status for a WAF
 type Backup struct {
-	ServiceID string
-	ID        string
-	Updated   time.Time
-	Disabled  []string
-	Block     []string
-	Log       []string
-	Owasp     owaspSettings
+	ServiceID     string
+	ID            string
+	Updated       time.Time
+	DisabledRules []int64
+	Block         []int64
+	Log           []int64
+	Owasp         owaspSettings
 }
 
 type owaspSettings struct {
@@ -114,6 +114,7 @@ type WeblogSettings struct {
 	Tlscacert   string
 	Tlshostname string
 	Format      string
+	Condition   string
 	Expiry      uint
 }
 
@@ -1064,20 +1065,48 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		return false
 	}
 
+	weblog_condtion := "waf.logged"
+
+	//Check if there's a condition supplied in the config.
+	if config.Weblog.Condition != "" {
+		weblog_condtion = config.Weblog.Condition
+	}
+	Info.Printf("Using web logging condition : %q\n", weblog_condtion)
+
 	// Create condition statement for Shielding & PX
 	var cstmts []string
 	var msgs []string
-	if withShielding {
-		msgs = append(msgs, "Shielding")
-		cstmts = append(cstmts, "(waf.executed || fastly_info.state !~ \"(MISS|PASS)\")")
-	}
+	cstmts = append(cstmts, weblog_condtion)
+	cn := "waf-soc-logging"
+
 	if withPX {
 		msgs = append(msgs, "PerimeterX")
 		cstmts = append(cstmts, "(req.http.x-request-id)")
 	}
 
-	// Create WAF Log condition (drop the old one if it exists)
-	cn := "waf-soc-logging"
+	//Check for expiry value
+	if config.Weblog.Expiry > 0 {
+		cn = "waf-soc-logging-with-expiry"
+		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
+		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) > %d)", exp))
+		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
+
+		//Check for existing
+		if conditionExists(conditions, "waf-soc-logging-with-expiry") {
+			Info.Println("Deleting logging condition: 'waf-soc-logging-with-expiry'")
+			err = client.DeleteCondition(&fastly.DeleteConditionInput{
+				Service: serviceID,
+				Version: version,
+				Name:    "waf-soc-logging-with-expiry",
+			})
+			if err != nil {
+				Error.Fatal(err)
+				return false
+			}
+		}
+	}
+
+	// Add the condition
 	if conditionExists(conditions, cn) {
 		Info.Printf("Updating WAF logging condition : %q\n", cn)
 		_, err = client.UpdateCondition(&fastly.UpdateConditionInput{
@@ -1105,71 +1134,6 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		if err != nil {
 			Error.Fatal(err)
 			return false
-		}
-	}
-
-	// Assign the conditions to the WAF log object
-	Info.Printf("Assigning condition %q (%s) to WAF log %q\n", cn, strings.Join(msgs, ", "), config.Waflog.Name)
-	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
-		Service:           serviceID,
-		Version:           version,
-		Name:              config.Waflog.Name,
-		ResponseCondition: cn,
-	})
-	if err != nil {
-		Error.Fatal(err)
-		return false
-	}
-
-	// If a WAF Web-Log expiry has been defined, add expiry to the condition.
-	if config.Weblog.Expiry > 0 {
-		cn = "waf-soc-logging-with-expiry"
-		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
-		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) > %d)", exp))
-		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
-
-		if conditionExists(conditions, cn) {
-			Info.Printf("Updating WAF logging condition with %d day expiry : %q\n", config.Weblog.Expiry, cn)
-			_, err = client.UpdateCondition(&fastly.UpdateConditionInput{
-				Service:   serviceID,
-				Version:   version,
-				Name:      cn,
-				Statement: strings.Join(cstmts, " && "),
-				Type:      "RESPONSE",
-				Priority:  10,
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-		} else {
-			Info.Printf("Creating WAF logging condition with %d day expiry : %q\n", config.Weblog.Expiry, cn)
-			_, err = client.CreateCondition(&fastly.CreateConditionInput{
-				Service:   serviceID,
-				Version:   version,
-				Name:      cn,
-				Statement: strings.Join(cstmts, " && "),
-				Type:      "RESPONSE",
-				Priority:  10,
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-		}
-	} else {
-		// Check for old Expires condition and clean
-		if conditionExists(conditions, "waf-soc-logging-with-expiry") {
-			Info.Println("Deleting logging condition: 'waf-soc-logging-with-expiry'")
-			err = client.DeleteCondition(&fastly.DeleteConditionInput{
-				Service: serviceID,
-				Version: version,
-				Name:    "waf-soc-logging-with-expiry",
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
 		}
 	}
 
@@ -1705,20 +1669,29 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 		result.page = append(result.page, body)
 	}
 
-	var log []string
-	var disabled []string
-	var block []string
+	var log []int64
+	var disabled []int64
+	var block []int64
 
 	for _, p := range result.page {
 		for _, r := range p.Data {
-			switch r.Attributes.Status {
-			case "log":
-				log = append(log, r.Attributes.ModsecRuleID)
-			case "block":
-				block = append(block, r.Attributes.ModsecRuleID)
-			case "disabled":
-				disabled = append(disabled, r.Attributes.ModsecRuleID)
+
+			ruleId, err := strconv.ParseInt(r.Attributes.ModsecRuleID, 10, 64)
+			if err != nil {
+				Error.Println("Failed to parse rule as int %s", r.Attributes.ModsecRuleID)
+			} else {
+
+				switch r.Attributes.Status {
+				case "log":
+					log = append(log, ruleId)
+				case "block":
+					block = append(block, ruleId)
+				case "disabled":
+					disabled = append(disabled, ruleId)
+				}
+
 			}
+
 		}
 	}
 
@@ -1770,13 +1743,13 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 
 	//Safe Backup Object
 	backup := Backup{
-		ID:        sha,
-		ServiceID: serviceID,
-		Disabled:  disabled,
-		Block:     block,
-		Log:       log,
-		Owasp:     o,
-		Updated:   time.Now(),
+		ID:            sha,
+		ServiceID:     serviceID,
+		DisabledRules: disabled,
+		Block:         block,
+		Log:           log,
+		Owasp:         o,
+		Updated:       time.Now(),
 	}
 
 	buf := new(bytes.Buffer)
@@ -2082,6 +2055,8 @@ func main() {
 				Info.Println("WAF enabled with Shielding or PerimeterX, setting logging conditions")
 				version := cloneVersion(*client, *serviceID, activeVersion)
 				AddLoggingCondition(*client, *serviceID, version, config, *withShielding, *withPX)
+				//validate the config
+				validateVersion(*client, *serviceID, activeVersion)
 
 			//back up WAF rules locally
 			case *backup:
@@ -2116,8 +2091,6 @@ func main() {
 				os.Exit(1)
 			}
 
-			//validate the config
-			validateVersion(*client, *serviceID, activeVersion)
 			Info.Println("Completed")
 			os.Exit(0)
 		}

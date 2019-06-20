@@ -46,6 +46,7 @@ name = "weblogs"
 address = "address"
 port = 514
 format = '''{\"type\":\"req\",\"service_id\":\"%{req.service_id}V\",\"request_id\":\"%{req.http.fastly-soc-x-request-id}V\",\"start_time\":\"%{time.start.sec}V\",\"fastly_info\":\"%{fastly_info.state}V\",\"datacenter\":\"%{server.datacenter}V\",\"client_ip\":\"%a\",\"req_method\":\"%m\",\"req_uri\":\"%{cstr_escape(req.url)}V\",\"req_h_host\":\"%{cstr_escape(req.http.Host)}V\",\"req_h_user_agent\":\"%{cstr_escape(req.http.User-Agent)}V\",\"req_h_accept_encoding\":\"%{cstr_escape(req.http.Accept-Encoding)}V\",\"req_header_bytes\":\"%{req.header_bytes_read}V\",\"req_body_bytes\":\"%{req.body_bytes_read}V\",\"waf_logged\":\"%{waf.logged}V\",\"waf_blocked\":\"%{waf.blocked}V\",\"waf_failures\":\"%{waf.failures}V\",\"waf_executed\":\"%{waf.executed}V\",\"anomaly_score\":\"%{waf.anomaly_score}V\",\"sql_injection_score\":\"%{waf.sql_injection_score}V\",\"rfi_score\":\"%{waf.rfi_score}V\",\"lfi_score\":\"%{waf.lfi_score}V\",\"rce_score\":\"%{waf.rce_score}V\",\"php_injection_score\":\"%{waf.php_injection_score}V\",\"session_fixation_score\":\"%{waf.session_fixation_score}V\",\"http_violation_score\":\"%{waf.http_violation_score}V\",\"xss_score\":\"%{waf.xss_score}V\",\"resp_status\":\"%{resp.status}V\",\"resp_bytes\":\"%{resp.bytes_written}V\",\"resp_header_bytes\":\"%{resp.header_bytes_written}V\",\"resp_body_bytes\":\"%{resp.body_bytes_written}V\"}'''
+condition = "waf.executed"
 
 [waflog]
 name = "waflogs"
