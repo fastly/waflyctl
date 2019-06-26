@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/sethvargo/go-fastly/fastly"
+	"github.com/fastly/go-fastly/fastly"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"gopkg.in/resty.v1"
 )
