@@ -114,6 +114,7 @@ type WeblogSettings struct {
 	Tlscacert   string
 	Tlshostname string
 	Format      string
+	Condition   string
 	Expiry      uint
 }
 
@@ -1064,20 +1065,48 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		return false
 	}
 
+	weblog_condtion := "waf.executed"
+
+	//Check if there's a condition supplied in the config.
+	if config.Weblog.Condition != "" {
+		weblog_condtion = config.Weblog.Condition
+	}
+	Info.Printf("Using web logging condition : %q\n", weblog_condtion)
+
 	// Create condition statement for Shielding & PX
 	var cstmts []string
 	var msgs []string
-	if withShielding {
-		msgs = append(msgs, "Shielding")
-		cstmts = append(cstmts, "(waf.executed || fastly_info.state !~ \"(MISS|PASS)\")")
-	}
+	cstmts = append(cstmts, weblog_condtion)
+	cn := "waf-soc-logging"
+
 	if withPX {
 		msgs = append(msgs, "PerimeterX")
 		cstmts = append(cstmts, "(req.http.x-request-id)")
 	}
 
-	// Create WAF Log condition (drop the old one if it exists)
-	cn := "waf-soc-logging"
+	//Check for expiry value
+	if config.Weblog.Expiry > 0 {
+		cn = "waf-soc-logging-with-expiry"
+		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
+		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) < %d)", exp))
+		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
+
+		//Check for existing
+		if conditionExists(conditions, "waf-soc-logging-with-expiry") {
+			Info.Println("Deleting logging condition: 'waf-soc-logging-with-expiry'")
+			err = client.DeleteCondition(&fastly.DeleteConditionInput{
+				Service: serviceID,
+				Version: version,
+				Name:    "waf-soc-logging-with-expiry",
+			})
+			if err != nil {
+				Error.Fatal(err)
+				return false
+			}
+		}
+	}
+
+	// Add the condition
 	if conditionExists(conditions, cn) {
 		Info.Printf("Updating WAF logging condition : %q\n", cn)
 		_, err = client.UpdateCondition(&fastly.UpdateConditionInput{
@@ -1105,71 +1134,6 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		if err != nil {
 			Error.Fatal(err)
 			return false
-		}
-	}
-
-	// Assign the conditions to the WAF log object
-	Info.Printf("Assigning condition %q (%s) to WAF log %q\n", cn, strings.Join(msgs, ", "), config.Waflog.Name)
-	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
-		Service:           serviceID,
-		Version:           version,
-		Name:              config.Waflog.Name,
-		ResponseCondition: cn,
-	})
-	if err != nil {
-		Error.Fatal(err)
-		return false
-	}
-
-	// If a WAF Web-Log expiry has been defined, add expiry to the condition.
-	if config.Weblog.Expiry > 0 {
-		cn = "waf-soc-logging-with-expiry"
-		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
-		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) < %d)", exp))
-		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
-
-		if conditionExists(conditions, cn) {
-			Info.Printf("Updating WAF logging condition with %d day expiry : %q\n", config.Weblog.Expiry, cn)
-			_, err = client.UpdateCondition(&fastly.UpdateConditionInput{
-				Service:   serviceID,
-				Version:   version,
-				Name:      cn,
-				Statement: strings.Join(cstmts, " && "),
-				Type:      "RESPONSE",
-				Priority:  10,
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-		} else {
-			Info.Printf("Creating WAF logging condition with %d day expiry : %q\n", config.Weblog.Expiry, cn)
-			_, err = client.CreateCondition(&fastly.CreateConditionInput{
-				Service:   serviceID,
-				Version:   version,
-				Name:      cn,
-				Statement: strings.Join(cstmts, " && "),
-				Type:      "RESPONSE",
-				Priority:  10,
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-		}
-	} else {
-		// Check for old Expires condition and clean
-		if conditionExists(conditions, "waf-soc-logging-with-expiry") {
-			Info.Println("Deleting logging condition: 'waf-soc-logging-with-expiry'")
-			err = client.DeleteCondition(&fastly.DeleteConditionInput{
-				Service: serviceID,
-				Version: version,
-				Name:    "waf-soc-logging-with-expiry",
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
 		}
 	}
 
