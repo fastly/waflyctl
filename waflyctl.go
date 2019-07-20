@@ -70,9 +70,9 @@ type Backup struct {
 	ServiceID string
 	ID        string
 	Updated   time.Time
-	Disabled  []string
-	Block     []string
-	Log       []string
+	Disabled  []int64
+	Block     []int64
+	Log       []int64
 	Owasp     owaspSettings
 }
 
@@ -1705,20 +1705,29 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 		result.page = append(result.page, body)
 	}
 
-	var log []string
-	var disabled []string
-	var block []string
+	var log []int64
+	var disabled []int64
+	var block []int64
 
 	for _, p := range result.page {
 		for _, r := range p.Data {
-			switch r.Attributes.Status {
-			case "log":
-				log = append(log, r.Attributes.ModsecRuleID)
-			case "block":
-				block = append(block, r.Attributes.ModsecRuleID)
-			case "disabled":
-				disabled = append(disabled, r.Attributes.ModsecRuleID)
+
+			ruleId, err := strconv.ParseInt(r.Attributes.ModsecRuleID, 10, 64)
+			if err != nil {
+				Error.Println("Failed to parse rule as int %s", r.Attributes.ModsecRuleID)
+			} else {
+
+				switch r.Attributes.Status {
+				case "log":
+					log = append(log, ruleId)
+				case "block":
+					block = append(block, ruleId)
+				case "disabled":
+					disabled = append(disabled, ruleId)
+				}
+
 			}
+
 		}
 	}
 
