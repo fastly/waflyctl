@@ -1108,9 +1108,9 @@ func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TO
 	}
 }
 
-func checkRuleInList(rule Rule, rule_list []Rule) bool {
-	for _, check_rule := range rule_list {
-		if check_rule.ID == rule.ID {
+func checkRuleInList(rule Rule, ruleList []Rule) bool {
+	for _, checkRule := range ruleList {
+		if checkRule.ID == rule.ID {
 			return false
 		}
 	}
@@ -1130,18 +1130,18 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		return false
 	}
 
-	weblog_condtion := "waf.executed"
+	weblogCondtion := "waf.executed"
 
 	//Check if there's a condition supplied in the config.
 	if config.Weblog.Condition != "" {
-		weblog_condtion = config.Weblog.Condition
+		weblogCondtion = config.Weblog.Condition
 	}
-	Info.Printf("Using web logging condition : %q\n", weblog_condtion)
+	Info.Printf("Using web logging condition : %q\n", weblogCondtion)
 
 	// Create condition statement for PX and/or expiry
 	var cstmts []string
 	var msgs []string
-	cstmts = append(cstmts, weblog_condtion)
+	cstmts = append(cstmts, weblogCondtion)
 	cn := "waf-soc-logging"
 
 	if withPX {
@@ -1741,18 +1741,18 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	for _, p := range result.page {
 		for _, r := range p.Data {
 
-			ruleId, err := strconv.ParseInt(r.Attributes.ModsecRuleID, 10, 64)
+			ruleID, err := strconv.ParseInt(r.Attributes.ModsecRuleID, 10, 64)
 			if err != nil {
-				Error.Println("Failed to parse rule as int %s", r.Attributes.ModsecRuleID)
+				Error.Printf("Failed to parse rule as int %s\n", r.Attributes.ModsecRuleID)
 			} else {
 
 				switch r.Attributes.Status {
 				case "log":
-					log = append(log, ruleId)
+					log = append(log, ruleID)
 				case "block":
-					block = append(block, ruleId)
+					block = append(block, ruleID)
 				case "disabled":
-					disabled = append(disabled, ruleId)
+					disabled = append(disabled, ruleID)
 				}
 
 			}
@@ -1804,7 +1804,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	//create a hash
 	hasher := sha1.New()
 	hasher.Write([]byte(serviceID + time.Now().String()))
-	sha := hex.EncodeToString((hasher.Sum(nil)))
+	sha := hex.EncodeToString(hasher.Sum(nil))
 
 	//Safe Backup Object
 	backup := Backup{
