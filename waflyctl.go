@@ -50,19 +50,20 @@ var (
 
 // TOMLConfig is the applications config file
 type TOMLConfig struct {
-	Logpath       string
-	APIEndpoint   string
-	Tags          []string
-	Publisher     []string
-	Action        string
-	Rules         []int64
-	DisabledRules []int64
-	Owasp         owaspSettings
-	Weblog        WeblogSettings
-	Waflog        WaflogSettings
-	Vclsnippet    VCLSnippetSettings
-	Response      ResponseSettings
-	Prefetch      PrefetchSettings
+	Logpath            string
+	APIEndpoint        string
+	Tags               []string
+	Publisher          []string
+	Action             string
+	Rules              []int64
+	DisabledRules      []int64
+	Owasp              owaspSettings
+	Weblog             WeblogSettings
+	Waflog             WaflogSettings
+	Vclsnippet         VCLSnippetSettings
+	AdditionalSnippets map[string]VCLSnippetSettings
+	Response           ResponseSettings
+	Prefetch           PrefetchSettings
 }
 
 // Backup is a backup of the rule status for a WAF
@@ -370,33 +371,33 @@ func responseObject(client fastly.Client, serviceID string, config TOMLConfig, v
 	Info.Printf("Response object %q created\n", config.Response.Name)
 }
 
-func vclSnippet(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+func vclSnippet(client fastly.Client, serviceID string, vclSnippet VCLSnippetSettings, version int) {
 	snippets, err := client.ListSnippets(&fastly.ListSnippetsInput{
 		Service: serviceID,
 		Version: version,
 	})
 	if err != nil {
-		Error.Fatalf("Cannot create VCL snippet %q: ListSnippets: %v\n", config.Vclsnippet.Name, err)
+		Error.Fatalf("Cannot create VCL snippet %q: ListSnippets: %v\n", vclSnippet.Name, err)
 	}
 	for _, snippet := range snippets {
-		if snippet.Name == config.Vclsnippet.Name {
-			Warning.Printf("VCL snippet %q already exists, skipping\n", config.Vclsnippet.Name)
+		if snippet.Name == vclSnippet.Name {
+			Warning.Printf("VCL snippet %q already exists, skipping\n", vclSnippet.Name)
 			return
 		}
 	}
 	_, err = client.CreateSnippet(&fastly.CreateSnippetInput{
 		Service:  serviceID,
 		Version:  version,
-		Name:     config.Vclsnippet.Name,
-		Priority: config.Vclsnippet.Priority,
-		Dynamic:  config.Vclsnippet.Dynamic,
-		Content:  config.Vclsnippet.Content,
-		Type:     config.Vclsnippet.Type,
+		Name:     vclSnippet.Name,
+		Priority: vclSnippet.Priority,
+		Dynamic:  vclSnippet.Dynamic,
+		Content:  vclSnippet.Content,
+		Type:     vclSnippet.Type,
 	})
 	if err != nil {
-		Error.Fatalf("Cannot create VCL snippet %q: CreateSnippet: %v\n", config.Vclsnippet.Name, err)
+		Error.Fatalf("Cannot create VCL snippet %q: CreateSnippet: %v\n", vclSnippet.Name, err)
 	}
-	Info.Printf("VCL snippet %q created\n", config.Vclsnippet.Name)
+	Info.Printf("VCL snippet %q created\n", vclSnippet.Name)
 }
 
 func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, version int) {
@@ -795,7 +796,13 @@ func provisionWAF(client fastly.Client, serviceID string, config TOMLConfig, ver
 
 	responseObject(client, serviceID, config, version)
 
-	vclSnippet(client, serviceID, config, version)
+	vclSnippet(client, serviceID, config.Vclsnippet, version)
+
+	if len(config.AdditionalSnippets) > 0 {
+		for _, snippet := range config.AdditionalSnippets {
+			vclSnippet(client, serviceID, snippet, version)
+		}
+	}
 
 	wafID := wafContainer(client, serviceID, config, version)
 
@@ -830,6 +837,9 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLCo
 
 	for _, publisher := range config.Publisher {
 
+		if publisher == "" {
+			continue
+		}
 		//set our API call
 		apiCall := apiEndpoint + "/wafs/rules?filter[publisher]=" + publisher + "&page[number]=1"
 
@@ -931,8 +941,12 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 	apiCall := apiEndpoint + "/wafs/tags"
 
 	//make the call
-
+	ruleList := RuleList{}
 	for _, tag := range config.Tags {
+
+		if tag == "" {
+			continue
+		}
 
 		resp, err := resty.R().
 			SetQueryString(fmt.Sprintf("filter[name]=%s&include=rules", tag)).
@@ -972,13 +986,33 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 			os.Exit(1)
 		}
 
+		//unmarshal the response. Keep track of unique rules added by each tag so we can provide an accurate count
+		ruleCount := 0
+		if len(ruleList.Data) > 0 {
+			tmpRuleList := RuleList{}
+			json.Unmarshal([]byte(resp.String()), &tmpRuleList)
+
+			for _, rule := range tmpRuleList.Data {
+				if checkRuleInList(rule, ruleList.Data) {
+					ruleList.Data = append(ruleList.Data, rule)
+					ruleCount++
+				}
+			}
+		} else {
+			json.Unmarshal([]byte(resp.String()), &ruleList)
+			ruleCount = len(ruleList.Data)
+		}
+
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf("%s %d rule on the WAF for tag: %s\n", config.Action, len(body.Data), tag)
+			Info.Printf("%d rule(s) added in %s mode for tag: %s\n", ruleCount, config.Action, tag)
 		} else {
 			Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, tag, resp.String())
 		}
 	}
+
+	Info.Printf("Total %d rule(s) added via tags\n", len(ruleList.Data))
+
 }
 
 func changeStatus(apiEndpoint, apiKey, wafID, status string) {
@@ -1072,6 +1106,15 @@ func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TO
 			Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, ruleID, resp.String())
 		}
 	}
+}
+
+func checkRuleInList(rule Rule, rule_list []Rule) bool {
+	for _, check_rule := range rule_list {
+		if check_rule.ID == rule.ID {
+			return false
+		}
+	}
+	return true
 }
 
 // AddLoggingCondition creates/updates logging conditions based on whether the
@@ -1652,7 +1695,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	json.Unmarshal([]byte(resp.String()), &body)
 
 	if len(body.Data) == 0 {
-		Error.Println("No Fastly Rules found to back up")
+		Error.Println("No rules found to back up")
 		return false
 	}
 
@@ -1920,7 +1963,7 @@ func main() {
 		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//create VCL Snippet
-		vclSnippet(*client, *serviceID, config, version)
+		vclSnippet(*client, *serviceID, config.Vclsnippet, version)
 
 		//set logging parameters
 		fastlyLogging(*client, *serviceID, config, version)
@@ -1968,8 +2011,7 @@ func main() {
 		}
 	}
 
-	Info.Printf("currently working with config version: %v.\n", activeVersion)
-	Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+	Info.Printf("Active config version: %v.\n", activeVersion)
 	wafs, err := client.ListWAFs(&fastly.ListWAFsInput{
 		Service: *serviceID,
 		Version: activeVersion,
@@ -1980,6 +2022,7 @@ func main() {
 	}
 
 	if len(wafs) != 0 {
+
 		//do rule adjustment here
 		for index, waf := range wafs {
 
@@ -2024,7 +2067,10 @@ func main() {
 				os.Exit(0)
 
 			case *tags != "":
+
 				Info.Println("Editing Tags")
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 
@@ -2038,6 +2084,8 @@ func main() {
 
 			case *publishers != "":
 				Info.Println("Editing Publishers")
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//Publisher management
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
@@ -2051,6 +2099,8 @@ func main() {
 
 			case *rules != "":
 				Info.Println("Editing Rules")
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//rule management
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
@@ -2064,6 +2114,8 @@ func main() {
 
 			case *editOWASP:
 				Info.Printf("Editing OWASP settings for WAF #%v\n", index+1)
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
@@ -2078,6 +2130,7 @@ func main() {
 				Info.Println("WAF enabled with PerimeterX, setting logging conditions")
 				version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 				AddLoggingCondition(*client, *serviceID, version, config, *withPX)
+				validateVersion(*client, *serviceID, activeVersion)
 
 			//back up WAF rules locally
 			case *backup:
@@ -2090,6 +2143,8 @@ func main() {
 				}
 
 			case *provision:
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 				//rule management
@@ -2113,7 +2168,6 @@ func main() {
 			}
 
 			//validate the config
-			validateVersion(*client, *serviceID, activeVersion)
 			Info.Println("Completed")
 			os.Exit(0)
 		}
