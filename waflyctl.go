@@ -1017,8 +1017,8 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig
 	}
 }
 
-// DefaultRuleDisabled disables rule IDs defined in the configuration file
-func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
+// disabledRulesConfig disables rule IDs defined in the configuration file
+func disabledRulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 
 	//implement individual rule management here
 	for _, rule := range config.DisabledRules {
@@ -2093,23 +2093,25 @@ func main() {
 					os.Exit(1)
 				}
 
+			// WAF provisioning eqauls to waflyctl.toml deployment
 			case *provision:
-				//tags management
-				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
-				//rule management
-				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
-				//publisher management
+				// Prepare WAF ruleset. Order matters - go from the widest groups (publisher/tags) to the most granular rules
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
-				//OWASP
-				createOWASP(*client, *serviceID, config, waf.ID)
+				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
+				// extra rules you'd like to include, but they're not covered by publisher/tag
+				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
+				disabledRulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
-				//patch ruleset
+				// Patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
 					Error.Println("Issue patching ruleset see above error..")
 				}
+
+				// Update OWASP setttings at the very end
+				createOWASP(*client, *serviceID, config, waf.ID)
 
 			default:
 				Error.Println("Nothing to do. Exiting")
@@ -2140,8 +2142,8 @@ func main() {
 		//rule management
 		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
-		//Default Disabled
-		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
+		//disabled rules management
+		disabledRulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//Add logging conditions
 		AddLoggingCondition(*client, *serviceID, version, config, *withShielding, *withPX)
