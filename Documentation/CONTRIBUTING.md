@@ -11,4 +11,3 @@
   Explanation of new behaviour. Link to issue that is addressed. Ensure
   documentation contains the correct information.
 - Pull requests will be reviewed and hopefully merged into a release.
-
