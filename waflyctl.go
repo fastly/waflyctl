@@ -2102,6 +2102,9 @@ func main() {
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				disabledRulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
+				// Update OWASP setttings at the very end
+				createOWASP(*client, *serviceID, config, waf.ID)
+
 				// Patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
 					Info.Println("Rule set successfully patched")
@@ -2109,9 +2112,6 @@ func main() {
 				} else {
 					Error.Println("Issue patching ruleset see above error..")
 				}
-
-				// Update OWASP setttings at the very end
-				createOWASP(*client, *serviceID, config, waf.ID)
 
 			default:
 				Error.Println("Nothing to do. Exiting")
