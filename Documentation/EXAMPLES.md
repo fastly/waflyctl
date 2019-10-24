@@ -16,11 +16,11 @@ Replace <service_id> and <configuration_set_id> where appropriate.
 
 ## Customer with PerimeterX bot protection
 
-`waflyctl --apikey $FASTLY_TOKEN --domain myexample.com --with-perimeterx`
+`waflyctl --apikey $FASTLY_TOKEN --serviceid <service_id> --with-perimeterx`
 
 ## Only edit OWASP object base on what it is set on the config file
 
-`waflyctl --apikey $FASTLY_TOKEN --domain myexample.com --owasp`
+`waflyctl --apikey $FASTLY_TOKEN --serviceid <service_id> --owasp`
 
 ## Listing all configuration sets available on the fastly platform
 
