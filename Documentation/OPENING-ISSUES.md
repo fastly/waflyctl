@@ -15,4 +15,4 @@ A good bug report contains the data necessary to reproduce, identify, locate
 and address a problem in code. Where possible it should also indicate what
 steps have already been taken to address the issue and their result too.
 
-A report should be reproducible on a base install of waflyctl. 
+A report should be reproducible on a base install of waflyctl.

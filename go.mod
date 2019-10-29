@@ -14,7 +14,6 @@ require (
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/stretchr/testify v1.3.0 // indirect
 	golang.org/x/net v0.0.0-20190213061140-3a22650c66bd // indirect
-	golang.org/x/text v0.3.0 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/resty.v1 v1.11.0
 	gopkg.in/yaml.v2 v2.2.2 // indirect

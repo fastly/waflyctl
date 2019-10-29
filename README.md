@@ -1,19 +1,19 @@
-# Fastly WAF Control Tool 
+# Fastly WAF Control Tool
 
 ![Fastly WAF Control Tool](images/waflyctl_logo.png)
 
-[![Build Status](https://travis-ci.com/fastly/waflyctl.svg?token=83kKx7scGq3h69fnK6JA&branch=master)](https://travis-ci.com/fastly/waflyctl) 
+[![Build Status](https://travis-ci.com/fastly/waflyctl.svg?token=83kKx7scGq3h69fnK6JA&branch=master)](https://travis-ci.com/fastly/waflyctl)
 
 Thank you for using the "Fastly WAF Control Tool", you will find the latest version in the
 [release](https://github.com/fastly/waflyctl/releases) page.
 
-* rapidly and easily provision a waf object with:
-  * pre-determine rules
-  * OWASP configurations
-  * Response and logging endpoints. 
-* manage WAF rules, and their status. 
-* toggle WAF status on/off
-* manage logging endpoints
+- rapidly and easily provision a waf object with:
+  - pre-determine rules
+  - OWASP configurations
+  - Response and logging endpoints.
+- manage WAF rules, and their status.
+- toggle WAF status on/off
+- manage logging endpoints
 
 ## Contents
 
@@ -49,5 +49,6 @@ If there are issues/errors with integrating the module, please post
 [details](Documentation/OPENING-ISSUES.md) in the GitHub repository issues.
 
 ## Contributing
+
 We welcome pull requests for issues and new functionality. Please see
 [Contributing](Documentation/CONTRIBUTING.md) for more details.
