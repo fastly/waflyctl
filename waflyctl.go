@@ -548,6 +548,7 @@ func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, wafI
 	Info.Println(" - ParanoiaLevel:", owasp.ParanoiaLevel)
 	Info.Println(" - PHPInjectionScoreThreshold:", owasp.PHPInjectionScoreThreshold)
 	Info.Println(" - RCEScoreThreshold:", owasp.RCEScoreThreshold)
+	Info.Println(" - RestrictedExtensions:", owasp.RestrictedExtensions)
 	Info.Println(" - RestrictedHeaders:", owasp.RestrictedHeaders)
 	Info.Println(" - RFIScoreThreshold:", owasp.RFIScoreThreshold)
 	Info.Println(" - SessionFixationScoreThreshold:", owasp.SessionFixationScoreThreshold)
