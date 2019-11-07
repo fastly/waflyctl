@@ -1074,8 +1074,8 @@ func rulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig
 	}
 }
 
-// DefaultRuleDisabled disables rule IDs defined in the configuration file
-func DefaultRuleDisabled(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
+// disabledRulesConfig disables rule IDs defined in the configuration file
+func disabledRulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig) {
 
 	//implement individual rule management here
 	for _, rule := range config.DisabledRules {
@@ -2142,19 +2142,23 @@ func main() {
 					os.Exit(1)
 				}
 
+			// WAF provisioning eqauls to waflyctl.toml deployment
 			case *provision:
 				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
 
+				// Prepare WAF ruleset. Order matters - go from the widest groups (publisher/tags) to the most granular rules
+				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
+
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
-				//rule management
+				// extra rules you'd like to include, but they're not covered by publisher/tag
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
-				//publisher management
-				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
-				//OWASP
+				disabledRulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
+
+				// Update OWASP setttings at the very end
 				createOWASP(*client, *serviceID, config, waf.ID)
 
-				//patch ruleset
+				// Patch ruleset
 				if PatchRules(*serviceID, waf.ID, *client) {
 					Info.Println("Rule set successfully patched")
 
@@ -2190,8 +2194,8 @@ func main() {
 		//rule management
 		rulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
-		//Default Disabled
-		DefaultRuleDisabled(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
+		//disabled rules management
+		disabledRulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//Add logging conditions
 		// Ensure logging is defined in config and not being explicitly omitted
