@@ -50,19 +50,20 @@ var (
 
 // TOMLConfig is the applications config file
 type TOMLConfig struct {
-	Logpath       string
-	APIEndpoint   string
-	Tags          []string
-	Publisher     []string
-	Action        string
-	Rules         []int64
-	DisabledRules []int64
-	Owasp         owaspSettings
-	Weblog        WeblogSettings
-	Waflog        WaflogSettings
-	Vclsnippet    VCLSnippetSettings
-	Response      ResponseSettings
-	Prefetch      PrefetchSettings
+	Logpath            string
+	APIEndpoint        string
+	Tags               []string
+	Publisher          []string
+	Action             string
+	Rules              []int64
+	DisabledRules      []int64
+	Owasp              owaspSettings
+	Weblog             WeblogSettings
+	Waflog             WaflogSettings
+	Vclsnippet         VCLSnippetSettings
+	AdditionalSnippets map[string]VCLSnippetSettings
+	Response           ResponseSettings
+	Prefetch           PrefetchSettings
 }
 
 // Backup is a backup of the rule status for a WAF
@@ -70,9 +71,9 @@ type Backup struct {
 	ServiceID string
 	ID        string
 	Updated   time.Time
-	Disabled  []string
-	Block     []string
-	Log       []string
+	Disabled  []int64
+	Block     []int64
+	Log       []int64
 	Owasp     owaspSettings
 }
 
@@ -114,6 +115,7 @@ type WeblogSettings struct {
 	Tlscacert   string
 	Tlshostname string
 	Format      string
+	Condition   string
 	Expiry      uint
 }
 
@@ -288,7 +290,7 @@ func getActiveVersion(client fastly.Client, serviceID string) int {
 	return 0
 }
 
-func cloneVersion(client fastly.Client, serviceID string, activeVersion int) int {
+func cloneVersion(client fastly.Client, serviceID string, activeVersion int, comment string) int {
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
 		Service: serviceID,
 		Version: activeVersion,
@@ -296,7 +298,19 @@ func cloneVersion(client fastly.Client, serviceID string, activeVersion int) int
 	if err != nil {
 		Error.Fatalf("Cannot clone version %d: CloneVersion: %v\n", activeVersion, err)
 	}
-	Info.Printf("New version %d created\n", version.Number)
+
+	if comment == "" {
+		Info.Printf("New version %d created\n", version.Number)
+	} else {
+		client.UpdateVersion(&fastly.UpdateVersionInput{
+			Service: serviceID,
+			Version: version.Number,
+			Comment: comment,
+		})
+		Info.Printf("New version %d created. Comment: %s\n", version.Number, comment)
+
+	}
+
 	return version.Number
 }
 
@@ -357,80 +371,90 @@ func responseObject(client fastly.Client, serviceID string, config TOMLConfig, v
 	Info.Printf("Response object %q created\n", config.Response.Name)
 }
 
-func vclSnippet(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+func vclSnippet(client fastly.Client, serviceID string, vclSnippet VCLSnippetSettings, version int) {
 	snippets, err := client.ListSnippets(&fastly.ListSnippetsInput{
 		Service: serviceID,
 		Version: version,
 	})
 	if err != nil {
-		Error.Fatalf("Cannot create VCL snippet %q: ListSnippets: %v\n", config.Vclsnippet.Name, err)
+		Error.Fatalf("Cannot create VCL snippet %q: ListSnippets: %v\n", vclSnippet.Name, err)
 	}
 	for _, snippet := range snippets {
-		if snippet.Name == config.Vclsnippet.Name {
-			Warning.Printf("VCL snippet %q already exists, skipping\n", config.Vclsnippet.Name)
+		if snippet.Name == vclSnippet.Name {
+			Warning.Printf("VCL snippet %q already exists, skipping\n", vclSnippet.Name)
 			return
 		}
 	}
 	_, err = client.CreateSnippet(&fastly.CreateSnippetInput{
 		Service:  serviceID,
 		Version:  version,
-		Name:     config.Vclsnippet.Name,
-		Priority: config.Vclsnippet.Priority,
-		Dynamic:  config.Vclsnippet.Dynamic,
-		Content:  config.Vclsnippet.Content,
-		Type:     config.Vclsnippet.Type,
+		Name:     vclSnippet.Name,
+		Priority: vclSnippet.Priority,
+		Dynamic:  vclSnippet.Dynamic,
+		Content:  vclSnippet.Content,
+		Type:     vclSnippet.Type,
 	})
 	if err != nil {
-		Error.Fatalf("Cannot create VCL snippet %q: CreateSnippet: %v\n", config.Vclsnippet.Name, err)
+		Error.Fatalf("Cannot create VCL snippet %q: CreateSnippet: %v\n", vclSnippet.Name, err)
 	}
-	Info.Printf("VCL snippet %q created\n", config.Vclsnippet.Name)
+	Info.Printf("VCL snippet %q created\n", vclSnippet.Name)
 }
 
 func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, version int) {
-	_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
-		Service:       serviceID,
-		Version:       version,
-		Name:          config.Weblog.Name,
-		Address:       config.Weblog.Address,
-		Port:          config.Weblog.Port,
-		UseTLS:        fastly.CBool(true),
-		IPV4:          config.Weblog.Address,
-		TLSCACert:     config.Weblog.Tlscacert,
-		TLSHostname:   config.Weblog.Tlshostname,
-		Format:        config.Weblog.Format,
-		FormatVersion: 2,
-		MessageType:   "blank",
-	})
-	switch {
-	case err == nil:
-		Info.Printf("Logging endpoint %q created\n", config.Weblog.Name)
-	case strings.Contains(err.Error(), "Duplicate record"):
-		Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Weblog.Name)
-	default:
-		Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Weblog.Name, err)
+
+	if config.Weblog.Name != "" {
+		_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
+			Service:       serviceID,
+			Version:       version,
+			Name:          config.Weblog.Name,
+			Address:       config.Weblog.Address,
+			Port:          config.Weblog.Port,
+			UseTLS:        fastly.CBool(true),
+			IPV4:          config.Weblog.Address,
+			TLSCACert:     config.Weblog.Tlscacert,
+			TLSHostname:   config.Weblog.Tlshostname,
+			Format:        config.Weblog.Format,
+			FormatVersion: 2,
+			MessageType:   "blank",
+		})
+		switch {
+		case err == nil:
+			Info.Printf("Logging endpoint %q created\n", config.Weblog.Name)
+		case strings.Contains(err.Error(), "Duplicate record"):
+			Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Weblog.Name)
+		default:
+			Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Weblog.Name, err)
+		}
+	} else {
+		Warning.Printf("Empty or invalid web log configuration, skipping\n")
 	}
-	_, err = client.CreateSyslog(&fastly.CreateSyslogInput{
-		Service:       serviceID,
-		Version:       version,
-		Name:          config.Waflog.Name,
-		Address:       config.Waflog.Address,
-		Port:          config.Waflog.Port,
-		UseTLS:        fastly.CBool(true),
-		IPV4:          config.Waflog.Address,
-		TLSCACert:     config.Waflog.Tlscacert,
-		TLSHostname:   config.Waflog.Tlshostname,
-		Format:        config.Waflog.Format,
-		FormatVersion: 2,
-		MessageType:   "blank",
-		Placement:     "waf_debug",
-	})
-	switch {
-	case err == nil:
-		Info.Printf("Logging endpoint %q created\n", config.Waflog.Name)
-	case strings.Contains(err.Error(), "Duplicate record"):
-		Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Waflog.Name)
-	default:
-		Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Waflog.Name, err)
+
+	if config.Waflog.Name != "" {
+		_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
+			Service:       serviceID,
+			Version:       version,
+			Name:          config.Waflog.Name,
+			Address:       config.Waflog.Address,
+			Port:          config.Waflog.Port,
+			UseTLS:        fastly.CBool(true),
+			IPV4:          config.Waflog.Address,
+			TLSCACert:     config.Waflog.Tlscacert,
+			TLSHostname:   config.Waflog.Tlshostname,
+			Format:        config.Waflog.Format,
+			FormatVersion: 2,
+			MessageType:   "blank",
+			Placement:     "waf_debug",
+		})
+		switch {
+		case err == nil:
+			Info.Printf("Logging endpoint %q created\n", config.Waflog.Name)
+		case strings.Contains(err.Error(), "Duplicate record"):
+			Warning.Printf("Logging endpoint %q already exists, skipping\n", config.Waflog.Name)
+		default:
+			Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Waflog.Name, err)
+		}
+	} else {
+		Warning.Printf("Empty or invalid web log configuration, skipping\n")
 	}
 }
 
@@ -625,7 +649,7 @@ func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, v
 
 	}
 
-	//remove shielding logging condition (if exists)
+	//remove legacy shielding logging condition (if exists)
 	if conditionExists(conditions, "waf-soc-with-shielding") {
 		Info.Println("Deleting Legacy Shielding logging condition: 'waf-soc-with-shielding'")
 		err = client.DeleteCondition(&fastly.DeleteConditionInput{
@@ -772,15 +796,21 @@ func provisionWAF(client fastly.Client, serviceID string, config TOMLConfig, ver
 
 	responseObject(client, serviceID, config, version)
 
-	vclSnippet(client, serviceID, config, version)
+	vclSnippet(client, serviceID, config.Vclsnippet, version)
+
+	if len(config.AdditionalSnippets) > 0 {
+		for _, snippet := range config.AdditionalSnippets {
+			vclSnippet(client, serviceID, snippet, version)
+		}
+	}
 
 	wafID := wafContainer(client, serviceID, config, version)
 
 	createOWASP(client, serviceID, config, wafID)
 
-	// In order to create the logging endpoints WAF must be
-	// created first. ¯\_(ツ)_/¯
-	fastlyLogging(client, serviceID, config, version)
+	if !*omitLogs {
+		fastlyLogging(client, serviceID, config, version)
+	}
 
 	return wafID
 }
@@ -807,6 +837,9 @@ func publisherConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLCo
 
 	for _, publisher := range config.Publisher {
 
+		if publisher == "" {
+			continue
+		}
 		//set our API call
 		apiCall := apiEndpoint + "/wafs/rules?filter[publisher]=" + publisher + "&page[number]=1"
 
@@ -908,8 +941,12 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 	apiCall := apiEndpoint + "/wafs/tags"
 
 	//make the call
-
+	ruleList := RuleList{}
 	for _, tag := range config.Tags {
+
+		if tag == "" {
+			continue
+		}
 
 		resp, err := resty.R().
 			SetQueryString(fmt.Sprintf("filter[name]=%s&include=rules", tag)).
@@ -949,13 +986,33 @@ func tagsConfig(apiEndpoint, apiKey, serviceID, wafID string, config TOMLConfig,
 			os.Exit(1)
 		}
 
+		//unmarshal the response. Keep track of unique rules added by each tag so we can provide an accurate count
+		ruleCount := 0
+		if len(ruleList.Data) > 0 {
+			tmpRuleList := RuleList{}
+			json.Unmarshal([]byte(resp.String()), &tmpRuleList)
+
+			for _, rule := range tmpRuleList.Data {
+				if checkRuleInList(rule, ruleList.Data) {
+					ruleList.Data = append(ruleList.Data, rule)
+					ruleCount++
+				}
+			}
+		} else {
+			json.Unmarshal([]byte(resp.String()), &ruleList)
+			ruleCount = len(ruleList.Data)
+		}
+
 		//check if our response was ok
 		if resp.Status() == "200 OK" {
-			Info.Printf("%s %d rule on the WAF for tag: %s\n", config.Action, len(body.Data), tag)
+			Info.Printf("%d rule(s) added in %s mode for tag: %s\n", ruleCount, config.Action, tag)
 		} else {
 			Error.Printf("Could not set status: %s on rule tag: %s the response was: %s\n", config.Action, tag, resp.String())
 		}
 	}
+
+	Info.Printf("Total %d rule(s) added via tags\n", len(ruleList.Data))
+
 }
 
 func changeStatus(apiEndpoint, apiKey, wafID, status string) {
@@ -1051,10 +1108,19 @@ func disabledRulesConfig(apiEndpoint, apiKey, serviceID, wafID string, config TO
 	}
 }
 
+func checkRuleInList(rule Rule, ruleList []Rule) bool {
+	for _, checkRule := range ruleList {
+		if checkRule.ID == rule.ID {
+			return false
+		}
+	}
+	return true
+}
+
 // AddLoggingCondition creates/updates logging conditions based on whether the
-// user has specified withShielding, withPerimeterX and a web-log expiry.
+// user has specified withPerimeterX and/or a web-log expiry.
 // NOTE: PerimeterX conditions will be deprecated next major release.
-func AddLoggingCondition(client fastly.Client, serviceID string, version int, config TOMLConfig, withShielding bool, withPX bool) bool {
+func AddLoggingCondition(client fastly.Client, serviceID string, version int, config TOMLConfig, withPX bool) bool {
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
 		Version: version,
@@ -1064,20 +1130,48 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		return false
 	}
 
-	// Create condition statement for Shielding & PX
+	weblogCondtion := "waf.executed"
+
+	//Check if there's a condition supplied in the config.
+	if config.Weblog.Condition != "" {
+		weblogCondtion = config.Weblog.Condition
+	}
+	Info.Printf("Using web logging condition : %q\n", weblogCondtion)
+
+	// Create condition statement for PX and/or expiry
 	var cstmts []string
 	var msgs []string
-	if withShielding {
-		msgs = append(msgs, "Shielding")
-		cstmts = append(cstmts, "(waf.executed || fastly_info.state !~ \"(MISS|PASS)\")")
-	}
+	cstmts = append(cstmts, weblogCondtion)
+	cn := "waf-soc-logging"
+
 	if withPX {
 		msgs = append(msgs, "PerimeterX")
 		cstmts = append(cstmts, "(req.http.x-request-id)")
 	}
 
-	// Create WAF Log condition (drop the old one if it exists)
-	cn := "waf-soc-logging"
+	//Check for expiry value
+	if config.Weblog.Expiry > 0 {
+		cn = "waf-soc-logging-with-expiry"
+		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
+		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) < %d)", exp))
+		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
+
+		//Check for existing
+		if conditionExists(conditions, "waf-soc-logging-with-expiry") {
+			Info.Println("Deleting logging condition: 'waf-soc-logging-with-expiry'")
+			err = client.DeleteCondition(&fastly.DeleteConditionInput{
+				Service: serviceID,
+				Version: version,
+				Name:    "waf-soc-logging-with-expiry",
+			})
+			if err != nil {
+				Error.Fatal(err)
+				return false
+			}
+		}
+	}
+
+	// Add the condition
 	if conditionExists(conditions, cn) {
 		Info.Printf("Updating WAF logging condition : %q\n", cn)
 		_, err = client.UpdateCondition(&fastly.UpdateConditionInput{
@@ -1105,71 +1199,6 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 		if err != nil {
 			Error.Fatal(err)
 			return false
-		}
-	}
-
-	// Assign the conditions to the WAF log object
-	Info.Printf("Assigning condition %q (%s) to WAF log %q\n", cn, strings.Join(msgs, ", "), config.Waflog.Name)
-	_, err = client.UpdateSyslog(&fastly.UpdateSyslogInput{
-		Service:           serviceID,
-		Version:           version,
-		Name:              config.Waflog.Name,
-		ResponseCondition: cn,
-	})
-	if err != nil {
-		Error.Fatal(err)
-		return false
-	}
-
-	// If a WAF Web-Log expiry has been defined, add expiry to the condition.
-	if config.Weblog.Expiry > 0 {
-		cn = "waf-soc-logging-with-expiry"
-		exp := time.Now().AddDate(0, 0, int(config.Weblog.Expiry)).Unix()
-		cstmts = append(cstmts, fmt.Sprintf("(std.atoi(now.sec) < %d)", exp))
-		msgs = append(msgs, fmt.Sprintf("%d day expiry", config.Weblog.Expiry))
-
-		if conditionExists(conditions, cn) {
-			Info.Printf("Updating WAF logging condition with %d day expiry : %q\n", config.Weblog.Expiry, cn)
-			_, err = client.UpdateCondition(&fastly.UpdateConditionInput{
-				Service:   serviceID,
-				Version:   version,
-				Name:      cn,
-				Statement: strings.Join(cstmts, " && "),
-				Type:      "RESPONSE",
-				Priority:  10,
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-		} else {
-			Info.Printf("Creating WAF logging condition with %d day expiry : %q\n", config.Weblog.Expiry, cn)
-			_, err = client.CreateCondition(&fastly.CreateConditionInput{
-				Service:   serviceID,
-				Version:   version,
-				Name:      cn,
-				Statement: strings.Join(cstmts, " && "),
-				Type:      "RESPONSE",
-				Priority:  10,
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
-		}
-	} else {
-		// Check for old Expires condition and clean
-		if conditionExists(conditions, "waf-soc-logging-with-expiry") {
-			Info.Println("Deleting logging condition: 'waf-soc-logging-with-expiry'")
-			err = client.DeleteCondition(&fastly.DeleteConditionInput{
-				Service: serviceID,
-				Version: version,
-				Name:    "waf-soc-logging-with-expiry",
-			})
-			if err != nil {
-				Error.Fatal(err)
-				return false
-			}
 		}
 	}
 
@@ -1666,7 +1695,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	json.Unmarshal([]byte(resp.String()), &body)
 
 	if len(body.Data) == 0 {
-		Error.Println("No Fastly Rules found to back up")
+		Error.Println("No rules found to back up")
 		return false
 	}
 
@@ -1705,20 +1734,29 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 		result.page = append(result.page, body)
 	}
 
-	var log []string
-	var disabled []string
-	var block []string
+	var log []int64
+	var disabled []int64
+	var block []int64
 
 	for _, p := range result.page {
 		for _, r := range p.Data {
-			switch r.Attributes.Status {
-			case "log":
-				log = append(log, r.Attributes.ModsecRuleID)
-			case "block":
-				block = append(block, r.Attributes.ModsecRuleID)
-			case "disabled":
-				disabled = append(disabled, r.Attributes.ModsecRuleID)
+
+			ruleID, err := strconv.ParseInt(r.Attributes.ModsecRuleID, 10, 64)
+			if err != nil {
+				Error.Printf("Failed to parse rule as int %s\n", r.Attributes.ModsecRuleID)
+			} else {
+
+				switch r.Attributes.Status {
+				case "log":
+					log = append(log, ruleID)
+				case "block":
+					block = append(block, ruleID)
+				case "disabled":
+					disabled = append(disabled, ruleID)
+				}
+
 			}
+
 		}
 	}
 
@@ -1766,7 +1804,7 @@ func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Cl
 	//create a hash
 	hasher := sha1.New()
 	hasher.Write([]byte(serviceID + time.Now().String()))
-	sha := hex.EncodeToString((hasher.Sum(nil)))
+	sha := hex.EncodeToString(hasher.Sum(nil))
 
 	//Safe Backup Object
 	backup := Backup{
@@ -1816,6 +1854,7 @@ var (
 	deleteLogs       = app.Flag("delete-logs", "When set removes WAF logging configuration.").Bool()
 	forceStatus      = app.Flag("force-status", "Force all rules (inc. disabled) to update for the given tag.").Bool()
 	logOnly          = app.Flag("enable-logs-only", "Add logging configuration only to the service. No other changes will be made. Can be used together with --with-perimeterx").Bool()
+	omitLogs         = app.Flag("no-logs", "Provision the WAF without setting up any logging endpoints.").Bool()
 	listAllRules     = app.Flag("list-all-rules", "List all rules available on the Fastly platform for a given configuration set.").PlaceHolder("CONFIGURATION-SET").String()
 	listConfigSet    = app.Flag("list-configuration-sets", "List all configuration sets and their status.").Bool()
 	listRules        = app.Flag("list-rules", "List current WAF rules and their status.").Bool()
@@ -1828,7 +1867,7 @@ var (
 	tags             = app.Flag("tags", "Which rules tags to add to the ruleset in a comma delimited fashion. Overwrites tags defined in config file. Example: wordpress,language-php,drupal.").String()
 	weblogExpiry     = app.Flag("web-log-expiry", "The default expiry of the web-log condition, expressed in days from the current date-time.").Default("-1").Int()
 	withPX           = app.Flag("with-perimeterx", "Enable if the customer has PerimeterX enabled on the service as well as WAF. Helps fix null value logging.").Bool()
-	withShielding    = app.Flag("with-shielding", "Enable if the customer has shielding enabled on the service. Helps fix multiple events with duplicate request IDs.").Bool()
+	addComment       = app.Flag("comment", "Add version comment when creating a new version.").String()
 )
 
 func main() {
@@ -1921,16 +1960,16 @@ func main() {
 
 		Info.Println("Adding logging endpoints only")
 
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//create VCL Snippet
-		vclSnippet(*client, *serviceID, config, version)
+		vclSnippet(*client, *serviceID, config.Vclsnippet, version)
 
 		//set logging parameters
 		fastlyLogging(*client, *serviceID, config, version)
 
 		//configure any logging conditions
-		AddLoggingCondition(*client, *serviceID, version, config, *withShielding, *withPX)
+		AddLoggingCondition(*client, *serviceID, version, config, *withPX)
 
 		//validate the config
 		validateVersion(*client, *serviceID, version)
@@ -1940,7 +1979,7 @@ func main() {
 	}
 	// check if is a de-provisioning call
 	if *deprovision {
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
 		if result {
@@ -1956,7 +1995,7 @@ func main() {
 
 	// check if is a delete logs parameter was called
 	if *deleteLogs {
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//delete the logs
 		result := DeleteLogsCall(*client, *serviceID, config, version)
@@ -1972,8 +2011,7 @@ func main() {
 		}
 	}
 
-	Info.Printf("currently working with config version: %v.\n", activeVersion)
-	Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+	Info.Printf("Active config version: %v.\n", activeVersion)
 	wafs, err := client.ListWAFs(&fastly.ListWAFsInput{
 		Service: *serviceID,
 		Version: activeVersion,
@@ -1984,6 +2022,7 @@ func main() {
 	}
 
 	if len(wafs) != 0 {
+
 		//do rule adjustment here
 		for index, waf := range wafs {
 
@@ -2028,7 +2067,10 @@ func main() {
 				os.Exit(0)
 
 			case *tags != "":
+
 				Info.Println("Editing Tags")
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 
@@ -2042,6 +2084,8 @@ func main() {
 
 			case *publishers != "":
 				Info.Println("Editing Publishers")
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//Publisher management
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
@@ -2055,6 +2099,8 @@ func main() {
 
 			case *rules != "":
 				Info.Println("Editing Rules")
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				//rule management
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
@@ -2068,6 +2114,8 @@ func main() {
 
 			case *editOWASP:
 				Info.Printf("Editing OWASP settings for WAF #%v\n", index+1)
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				createOWASP(*client, *serviceID, config, waf.ID)
 
 				//patch ruleset
@@ -2078,10 +2126,11 @@ func main() {
 					Error.Println("Issue patching ruleset see above error..")
 				}
 
-			case *withPX || *withShielding:
-				Info.Println("WAF enabled with Shielding or PerimeterX, setting logging conditions")
-				version := cloneVersion(*client, *serviceID, activeVersion)
-				AddLoggingCondition(*client, *serviceID, version, config, *withShielding, *withPX)
+			case *withPX:
+				Info.Println("WAF enabled with PerimeterX, setting logging conditions")
+				version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
+				AddLoggingCondition(*client, *serviceID, version, config, *withPX)
+				validateVersion(*client, *serviceID, activeVersion)
 
 			//back up WAF rules locally
 			case *backup:
@@ -2095,8 +2144,12 @@ func main() {
 
 			// WAF provisioning eqauls to waflyctl.toml deployment
 			case *provision:
+				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
+
 				// Prepare WAF ruleset. Order matters - go from the widest groups (publisher/tags) to the most granular rules
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
+
+				//tags management
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 				// extra rules you'd like to include, but they're not covered by publisher/tag
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
@@ -2119,7 +2172,6 @@ func main() {
 			}
 
 			//validate the config
-			validateVersion(*client, *serviceID, activeVersion)
 			Info.Println("Completed")
 			os.Exit(0)
 		}
@@ -2128,7 +2180,7 @@ func main() {
 		Warning.Printf("Provisioning a new WAF on Service ID: %s\n", *serviceID)
 
 		//clone current version
-		version := cloneVersion(*client, *serviceID, activeVersion)
+		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
 
 		//provision a new WAF service
 		wafID := provisionWAF(*client, *serviceID, config, version)
@@ -2146,7 +2198,10 @@ func main() {
 		disabledRulesConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
 
 		//Add logging conditions
-		AddLoggingCondition(*client, *serviceID, version, config, *withShielding, *withPX)
+		// Ensure logging is defined in config and not being explicitly omitted
+		if !*omitLogs && config.Weblog.Name != "" {
+			AddLoggingCondition(*client, *serviceID, version, config, *withPX)
+		}
 
 		latest, err := client.LatestVersion(&fastly.LatestVersionInput{
 			Service: *serviceID,
