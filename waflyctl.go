@@ -228,6 +228,15 @@ type ConfigSet struct {
 	} `json:"attributes"`
 }
 
+type PatchRulesStatusCheck struct {
+	Data struct {
+		ID         string `json:id`
+		Attributes struct {
+			Status string `json:status`
+		} `json:attributes`
+	} `json:data`
+}
+
 //Init function starts our logger
 func Init(configFile string) TOMLConfig {
 
@@ -1218,9 +1227,8 @@ func AddLoggingCondition(client *fastly.Client, serviceID string, version int, c
 }
 
 // PatchRules function patches a rule set after a status of a rule has been changed
-func PatchRules(serviceID, wafID string, client *fastly.Client) bool {
-
-	_, err := client.UpdateWAFRuleSets(&fastly.UpdateWAFRuleRuleSetsInput{
+func PatchRules(serviceID, wafID string, client *fastly.Client, apiKey string) bool {
+	resp, err := client.UpdateWAFRuleSets(&fastly.UpdateWAFRuleRuleSetsInput{
 		Service: serviceID,
 		ID:      wafID,
 	})
@@ -1228,8 +1236,31 @@ func PatchRules(serviceID, wafID string, client *fastly.Client) bool {
 	if err != nil {
 		Error.Print(err)
 		return false
-
 	}
+
+	Info.Println("Checking for deployment status")
+	for {
+		time.Sleep(5000 * time.Millisecond)
+
+		statusResp, err := resty.R().
+			SetHeader("Fastly-Key", apiKey).
+			Get(resp.Link)
+
+		if err != nil {
+			Error.Print(err)
+			return false
+		}
+
+		body := PatchRulesStatusCheck{}
+		json.Unmarshal([]byte(statusResp.String()), &body)
+
+		Info.Println("Deployment status: " + body.Data.Attributes.Status)
+
+		if body.Data.Attributes.Status == "complete" {
+			break
+		}
+	}
+
 	return true
 }
 
@@ -2073,7 +2104,7 @@ func main() {
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, client) {
+				if PatchRules(*serviceID, waf.ID, client, *apiKey) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2088,7 +2119,7 @@ func main() {
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, client) {
+				if PatchRules(*serviceID, waf.ID, client, *apiKey) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2103,7 +2134,7 @@ func main() {
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, client) {
+				if PatchRules(*serviceID, waf.ID, client, *apiKey) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2117,7 +2148,7 @@ func main() {
 				createOWASP(client, *serviceID, config, waf.ID)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, client) {
+				if PatchRules(*serviceID, waf.ID, client, *apiKey) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2153,7 +2184,7 @@ func main() {
 				createOWASP(client, *serviceID, config, waf.ID)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, client) {
+				if PatchRules(*serviceID, waf.ID, client, *apiKey) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2205,7 +2236,7 @@ func main() {
 		}
 
 		//patch ruleset
-		if PatchRules(*serviceID, wafID, client) {
+		if PatchRules(*serviceID, wafID, client, *apiKey) {
 			Info.Println("Rule set successfully patched")
 
 		} else {
