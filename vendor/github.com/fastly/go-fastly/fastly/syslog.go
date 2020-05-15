@@ -20,6 +20,8 @@ type Syslog struct {
 	IPV4              string     `mapstructure:"ipv4"`
 	TLSCACert         string     `mapstructure:"tls_ca_cert"`
 	TLSHostname       string     `mapstructure:"tls_hostname"`
+	TLSClientCert     string     `mapstructure:"tls_client_cert"`
+	TLSClientKey      string     `mapstructure:"tls_client_key"`
 	Token             string     `mapstructure:"token"`
 	Format            string     `mapstructure:"format"`
 	FormatVersion     uint       `mapstructure:"format_version"`
@@ -67,7 +69,7 @@ func (c *Client) ListSyslogs(i *ListSyslogsInput) ([]*Syslog, error) {
 	}
 
 	var ss []*Syslog
-	if err := decodeJSON(&ss, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &ss); err != nil {
 		return nil, err
 	}
 	sort.Stable(syslogsByName(ss))
@@ -89,6 +91,8 @@ type CreateSyslogInput struct {
 	IPV4              string       `form:"ipv4,omitempty"`
 	TLSCACert         string       `form:"tls_ca_cert,omitempty"`
 	TLSHostname       string       `form:"tls_hostname,omitempty"`
+	TLSClientCert     string       `form:"tls_client_cert,omitempty"`
+	TLSClientKey      string       `form:"tls_client_key,omitempty"`
 	Token             string       `form:"token,omitempty"`
 	Format            string       `form:"format,omitempty"`
 	FormatVersion     uint         `form:"format_version,omitempty"`
@@ -114,7 +118,7 @@ func (c *Client) CreateSyslog(i *CreateSyslogInput) (*Syslog, error) {
 	}
 
 	var s *Syslog
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -152,7 +156,7 @@ func (c *Client) GetSyslog(i *GetSyslogInput) (*Syslog, error) {
 	}
 
 	var s *Syslog
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -176,6 +180,8 @@ type UpdateSyslogInput struct {
 	IPV4              string       `form:"ipv4,omitempty"`
 	TLSCACert         string       `form:"tls_ca_cert,omitempty"`
 	TLSHostname       string       `form:"tls_hostname,omitempty"`
+	TLSClientCert     string       `form:"tls_client_cert,omitempty"`
+	TLSClientKey      string       `form:"tls_client_key,omitempty"`
 	Token             string       `form:"token,omitempty"`
 	Format            string       `form:"format,omitempty"`
 	FormatVersion     uint         `form:"format_version,omitempty"`
@@ -205,7 +211,7 @@ func (c *Client) UpdateSyslog(i *UpdateSyslogInput) (*Syslog, error) {
 	}
 
 	var s *Syslog
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -243,7 +249,7 @@ func (c *Client) DeleteSyslog(i *DeleteSyslogInput) error {
 	}
 
 	var r *statusResp
-	if err := decodeJSON(&r, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &r); err != nil {
 		return err
 	}
 	if !r.Ok() {

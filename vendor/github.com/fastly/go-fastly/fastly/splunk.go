@@ -19,6 +19,8 @@ type Splunk struct {
 	ResponseCondition string     `mapstructure:"response_condition"`
 	Placement         string     `mapstructure:"placement"`
 	Token             string     `mapstructure:"token"`
+	TLSCACert         string     `mapstructure:"tls_ca_cert"`
+	TLSHostname       string     `mapstructure:"tls_hostname"`
 	CreatedAt         *time.Time `mapstructure:"created_at"`
 	UpdatedAt         *time.Time `mapstructure:"updated_at"`
 	DeletedAt         *time.Time `mapstructure:"deleted_at"`
@@ -60,7 +62,7 @@ func (c *Client) ListSplunks(i *ListSplunksInput) ([]*Splunk, error) {
 	}
 
 	var ss []*Splunk
-	if err := decodeJSON(&ss, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &ss); err != nil {
 		return nil, err
 	}
 	sort.Stable(splunkByName(ss))
@@ -81,6 +83,8 @@ type CreateSplunkInput struct {
 	ResponseCondition string `form:"response_condition,omitempty"`
 	Placement         string `form:"placement,omitempty"`
 	Token             string `form:"token,omitempty"`
+	TLSCACert         string `form:"tls_ca_cert,omitempty"`
+	TLSHostname       string `form:"tls_hostname,omitempty"`
 }
 
 // CreateSplunk creates a new Fastly splunk.
@@ -100,7 +104,7 @@ func (c *Client) CreateSplunk(i *CreateSplunkInput) (*Splunk, error) {
 	}
 
 	var s *Splunk
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -138,7 +142,7 @@ func (c *Client) GetSplunk(i *GetSplunkInput) (*Splunk, error) {
 	}
 
 	var s *Splunk
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -161,6 +165,8 @@ type UpdateSplunkInput struct {
 	ResponseCondition string `form:"response_condition,omitempty"`
 	Placement         string `form:"placement,omitempty"`
 	Token             string `form:"token,omitempty"`
+	TLSCACert         string `form:"tls_ca_cert,omitempty"`
+	TLSHostname       string `form:"tls_hostname,omitempty"`
 }
 
 // UpdateSplunk updates a specific splunk.
@@ -184,7 +190,7 @@ func (c *Client) UpdateSplunk(i *UpdateSplunkInput) (*Splunk, error) {
 	}
 
 	var s *Splunk
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -222,7 +228,7 @@ func (c *Client) DeleteSplunk(i *DeleteSplunkInput) error {
 	}
 
 	var r *statusResp
-	if err := decodeJSON(&r, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &r); err != nil {
 		return err
 	}
 	if !r.Ok() {

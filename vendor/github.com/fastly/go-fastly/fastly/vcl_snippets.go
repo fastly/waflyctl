@@ -14,6 +14,9 @@ const (
 	// SnippetTypeRecv sets the type to recv
 	SnippetTypeRecv SnippetType = "recv"
 
+	// SnippetTypeHash sets the type to hash
+	SnippetTypeHash SnippetType = "hash"
+
 	// SnippetTypeHit sets the type to hit
 	SnippetTypeHit SnippetType = "hit"
 
@@ -107,7 +110,7 @@ func (c *Client) CreateSnippet(i *CreateSnippetInput) (*Snippet, error) {
 	}
 
 	var snippet *Snippet
-	if err := decodeJSON(&snippet, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &snippet); err != nil {
 		return nil, err
 	}
 	return snippet, err
@@ -164,7 +167,7 @@ func (c *Client) UpdateSnippet(i *UpdateSnippetInput) (*Snippet, error) {
 	}
 
 	var snippet *Snippet
-	if err := decodeJSON(&snippet, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &snippet); err != nil {
 		return nil, err
 	}
 	return snippet, err
@@ -209,7 +212,7 @@ func (c *Client) UpdateDynamicSnippet(i *UpdateDynamicSnippetInput) (*DynamicSni
 	}
 
 	var updateSnippet *DynamicSnippet
-	if err := decodeJSON(&updateSnippet, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &updateSnippet); err != nil {
 		return nil, err
 	}
 	return updateSnippet, err
@@ -246,7 +249,7 @@ func (c *Client) DeleteSnippet(i *DeleteSnippetInput) error {
 	}
 
 	var r *statusResp
-	if err := decodeJSON(&r, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &r); err != nil {
 		return err
 	}
 	if !r.Ok() {
@@ -292,7 +295,7 @@ func (c *Client) ListSnippets(i *ListSnippetsInput) ([]*Snippet, error) {
 	}
 
 	var snippets []*Snippet
-	if err := decodeJSON(&snippets, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &snippets); err != nil {
 		return nil, err
 	}
 	sort.Stable(snippetsByName(snippets))
@@ -332,7 +335,7 @@ func (c *Client) GetSnippet(i *GetSnippetInput) (*Snippet, error) {
 	}
 
 	var snippet *Snippet
-	if err := decodeJSON(&snippet, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &snippet); err != nil {
 		return nil, err
 	}
 	return snippet, nil
@@ -365,7 +368,7 @@ func (c *Client) GetDynamicSnippet(i *GetDynamicSnippetInput) (*DynamicSnippet, 
 	}
 
 	var snippet *DynamicSnippet
-	if err := decodeJSON(&snippet, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &snippet); err != nil {
 		return nil, err
 	}
 	return snippet, nil
