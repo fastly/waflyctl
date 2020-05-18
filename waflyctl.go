@@ -274,7 +274,7 @@ func Init(configFile string) TOMLConfig {
 	return config
 }
 
-func getActiveVersion(client fastly.Client, serviceID string) int {
+func getActiveVersion(client *fastly.Client, serviceID string) int {
 	service, err := client.GetService(&fastly.GetServiceInput{
 		ID: serviceID,
 	})
@@ -290,7 +290,7 @@ func getActiveVersion(client fastly.Client, serviceID string) int {
 	return 0
 }
 
-func cloneVersion(client fastly.Client, serviceID string, activeVersion int, comment string) int {
+func cloneVersion(client *fastly.Client, serviceID string, activeVersion int, comment string) int {
 	version, err := client.CloneVersion(&fastly.CloneVersionInput{
 		Service: serviceID,
 		Version: activeVersion,
@@ -314,7 +314,7 @@ func cloneVersion(client fastly.Client, serviceID string, activeVersion int, com
 	return version.Number
 }
 
-func prefetchCondition(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+func prefetchCondition(client *fastly.Client, serviceID string, config TOMLConfig, version int) {
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
 		Version: version,
@@ -342,7 +342,7 @@ func prefetchCondition(client fastly.Client, serviceID string, config TOMLConfig
 
 }
 
-func responseObject(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+func responseObject(client *fastly.Client, serviceID string, config TOMLConfig, version int) {
 	responses, err := client.ListResponseObjects(&fastly.ListResponseObjectsInput{
 		Service: serviceID,
 		Version: version,
@@ -371,7 +371,7 @@ func responseObject(client fastly.Client, serviceID string, config TOMLConfig, v
 	Info.Printf("Response object %q created\n", config.Response.Name)
 }
 
-func vclSnippet(client fastly.Client, serviceID string, vclSnippet VCLSnippetSettings, version int) {
+func vclSnippet(client *fastly.Client, serviceID string, vclSnippet VCLSnippetSettings, version int) {
 	snippets, err := client.ListSnippets(&fastly.ListSnippetsInput{
 		Service: serviceID,
 		Version: version,
@@ -400,7 +400,7 @@ func vclSnippet(client fastly.Client, serviceID string, vclSnippet VCLSnippetSet
 	Info.Printf("VCL snippet %q created\n", vclSnippet.Name)
 }
 
-func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, version int) {
+func fastlyLogging(client *fastly.Client, serviceID string, config TOMLConfig, version int) {
 
 	if config.Weblog.Name != "" {
 		_, err := client.CreateSyslog(&fastly.CreateSyslogInput{
@@ -456,7 +456,7 @@ func fastlyLogging(client fastly.Client, serviceID string, config TOMLConfig, ve
 	}
 }
 
-func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
+func wafContainer(client *fastly.Client, serviceID string, config TOMLConfig, version int) string {
 	waf, err := client.CreateWAF(&fastly.CreateWAFInput{
 		Service:           serviceID,
 		Version:           version,
@@ -470,7 +470,7 @@ func wafContainer(client fastly.Client, serviceID string, config TOMLConfig, ver
 	return waf.ID
 }
 
-func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, wafID string) {
+func createOWASP(client *fastly.Client, serviceID string, config TOMLConfig, wafID string) {
 	var created bool
 	var err error
 	owasp, _ := client.GetOWASP(&fastly.GetOWASPInput{
@@ -556,7 +556,7 @@ func createOWASP(client fastly.Client, serviceID string, config TOMLConfig, wafI
 }
 
 // DeleteLogsCall removes logging endpoints and any logging conditions.
-func DeleteLogsCall(client fastly.Client, serviceID string, config TOMLConfig, version int) bool {
+func DeleteLogsCall(client *fastly.Client, serviceID string, config TOMLConfig, version int) bool {
 
 	//Get a list of SysLogs
 	slogs, err := client.ListSyslogs(&fastly.ListSyslogsInput{
@@ -688,7 +688,7 @@ func sysLogExists(slogs []*fastly.Syslog, name string) bool {
 }
 
 // DeprovisionWAF removes a WAF from a service
-func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) bool {
+func DeprovisionWAF(client *fastly.Client, serviceID, apiKey string, config TOMLConfig, version int) bool {
 	/*
 		To Remove
 		1. Delete response
@@ -789,7 +789,7 @@ func DeprovisionWAF(client fastly.Client, serviceID, apiKey string, config TOMLC
 	return true
 }
 
-func provisionWAF(client fastly.Client, serviceID string, config TOMLConfig, version int) string {
+func provisionWAF(client *fastly.Client, serviceID string, config TOMLConfig, version int) string {
 	prefetchCondition(client, serviceID, config, version)
 
 	responseObject(client, serviceID, config, version)
@@ -813,7 +813,7 @@ func provisionWAF(client fastly.Client, serviceID string, config TOMLConfig, ver
 	return wafID
 }
 
-func validateVersion(client fastly.Client, serviceID string, version int) bool {
+func validateVersion(client *fastly.Client, serviceID string, version int) bool {
 	valid, _, err := client.ValidateVersion(&fastly.ValidateVersionInput{
 		Service: serviceID,
 		Version: version,
@@ -1118,7 +1118,7 @@ func checkRuleInList(rule Rule, ruleList []Rule) bool {
 // AddLoggingCondition creates/updates logging conditions based on whether the
 // user has specified withPerimeterX and/or a web-log expiry.
 // NOTE: PerimeterX conditions will be deprecated next major release.
-func AddLoggingCondition(client fastly.Client, serviceID string, version int, config TOMLConfig, withPX bool) bool {
+func AddLoggingCondition(client *fastly.Client, serviceID string, version int, config TOMLConfig, withPX bool) bool {
 	conditions, err := client.ListConditions(&fastly.ListConditionsInput{
 		Service: serviceID,
 		Version: version,
@@ -1218,7 +1218,7 @@ func AddLoggingCondition(client fastly.Client, serviceID string, version int, co
 }
 
 // PatchRules function patches a rule set after a status of a rule has been changed
-func PatchRules(serviceID, wafID string, client fastly.Client) bool {
+func PatchRules(serviceID, wafID string, client *fastly.Client) bool {
 
 	_, err := client.UpdateWAFRuleSets(&fastly.UpdateWAFRuleRuleSetsInput{
 		Service: serviceID,
@@ -1234,7 +1234,7 @@ func PatchRules(serviceID, wafID string, client fastly.Client) bool {
 }
 
 // changeConfigurationSet function allows you to change a config set for a WAF object
-func setConfigurationSet(wafID, configurationSet string, client fastly.Client) bool {
+func setConfigurationSet(wafID, configurationSet string, client *fastly.Client) bool {
 
 	wafs := []fastly.ConfigSetWAFs{{ID: wafID}}
 
@@ -1662,7 +1662,7 @@ func getAllRules(apiEndpoint, apiKey, configID string) bool {
 }
 
 // backupConfig function stores all rules, status, configuration set, and OWASP configuration locally
-func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client fastly.Client, bpath string) bool {
+func backupConfig(apiEndpoint, apiKey, serviceID, wafID string, client *fastly.Client, bpath string) bool {
 
 	//validate the output path
 	d := filepath.Dir(bpath)
@@ -1951,35 +1951,35 @@ func main() {
 	}
 
 	//get currently activeVersion to be used
-	activeVersion := getActiveVersion(*client, *serviceID)
+	activeVersion := getActiveVersion(client, *serviceID)
 
 	// add logs only to a service
 	if *logOnly {
 
 		Info.Println("Adding logging endpoints only")
 
-		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
+		version := cloneVersion(client, *serviceID, activeVersion, *addComment)
 
 		//create VCL Snippet
-		vclSnippet(*client, *serviceID, config.Vclsnippet, version)
+		vclSnippet(client, *serviceID, config.Vclsnippet, version)
 
 		//set logging parameters
-		fastlyLogging(*client, *serviceID, config, version)
+		fastlyLogging(client, *serviceID, config, version)
 
 		//configure any logging conditions
-		AddLoggingCondition(*client, *serviceID, version, config, *withPX)
+		AddLoggingCondition(client, *serviceID, version, config, *withPX)
 
 		//validate the config
-		validateVersion(*client, *serviceID, version)
+		validateVersion(client, *serviceID, version)
 		Info.Println("Completed")
 		os.Exit(0)
 
 	}
 	// check if is a de-provisioning call
 	if *deprovision {
-		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
+		version := cloneVersion(client, *serviceID, activeVersion, *addComment)
 
-		result := DeprovisionWAF(*client, *serviceID, *apiKey, config, version)
+		result := DeprovisionWAF(client, *serviceID, *apiKey, config, version)
 		if result {
 			Info.Printf("Successfully deleted WAF on Service ID %s. Do not forget to activate version %v!\n", *serviceID, version)
 			Info.Println("Completed")
@@ -1993,10 +1993,10 @@ func main() {
 
 	// check if is a delete logs parameter was called
 	if *deleteLogs {
-		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
+		version := cloneVersion(client, *serviceID, activeVersion, *addComment)
 
 		//delete the logs
-		result := DeleteLogsCall(*client, *serviceID, config, version)
+		result := DeleteLogsCall(client, *serviceID, config, version)
 
 		if result {
 			Info.Printf("Successfully deleted logging endpint %s and %s in Service ID %s. Remember to activate version %v!\n", config.Weblog.Name, config.Waflog.Name, *serviceID, version)
@@ -2053,7 +2053,7 @@ func main() {
 			case *configurationSet != "":
 				Info.Printf("Changing Configuration Set to: %s\n", *configurationSet)
 				configID := *configurationSet
-				setConfigurationSet(waf.ID, configID, *client)
+				setConfigurationSet(waf.ID, configID, client)
 				Info.Println("Completed")
 				os.Exit(0)
 
@@ -2073,7 +2073,7 @@ func main() {
 				tagsConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config, *forceStatus)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, *client) {
+				if PatchRules(*serviceID, waf.ID, client) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2088,7 +2088,7 @@ func main() {
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, *client) {
+				if PatchRules(*serviceID, waf.ID, client) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2103,7 +2103,7 @@ func main() {
 				rulesConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, *client) {
+				if PatchRules(*serviceID, waf.ID, client) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2114,10 +2114,10 @@ func main() {
 				Info.Printf("Editing OWASP settings for WAF #%v\n", index+1)
 				Warning.Println("Publisher, Rules, OWASP Settings and Tags changes are versionless actions and thus do not generate a new config version")
 
-				createOWASP(*client, *serviceID, config, waf.ID)
+				createOWASP(client, *serviceID, config, waf.ID)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, *client) {
+				if PatchRules(*serviceID, waf.ID, client) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2126,9 +2126,9 @@ func main() {
 
 			case *withPX:
 				Info.Println("WAF enabled with PerimeterX, setting logging conditions")
-				version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
-				AddLoggingCondition(*client, *serviceID, version, config, *withPX)
-				validateVersion(*client, *serviceID, activeVersion)
+				version := cloneVersion(client, *serviceID, activeVersion, *addComment)
+				AddLoggingCondition(client, *serviceID, version, config, *withPX)
+				validateVersion(client, *serviceID, activeVersion)
 
 			//back up WAF rules locally
 			case *backup:
@@ -2136,7 +2136,7 @@ func main() {
 
 				bp := strings.Replace(*backupPath, "<service-id>", *serviceID, -1)
 
-				if !backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, *client, bp) {
+				if !backupConfig(*apiEndpoint, *apiKey, *serviceID, waf.ID, client, bp) {
 					os.Exit(1)
 				}
 
@@ -2150,10 +2150,10 @@ func main() {
 				//publisher management
 				publisherConfig(config.APIEndpoint, *apiKey, *serviceID, waf.ID, config)
 				//OWASP
-				createOWASP(*client, *serviceID, config, waf.ID)
+				createOWASP(client, *serviceID, config, waf.ID)
 
 				//patch ruleset
-				if PatchRules(*serviceID, waf.ID, *client) {
+				if PatchRules(*serviceID, waf.ID, client) {
 					Info.Println("Rule set successfully patched")
 
 				} else {
@@ -2174,10 +2174,10 @@ func main() {
 		Warning.Printf("Provisioning a new WAF on Service ID: %s\n", *serviceID)
 
 		//clone current version
-		version := cloneVersion(*client, *serviceID, activeVersion, *addComment)
+		version := cloneVersion(client, *serviceID, activeVersion, *addComment)
 
 		//provision a new WAF service
-		wafID := provisionWAF(*client, *serviceID, config, version)
+		wafID := provisionWAF(client, *serviceID, config, version)
 
 		//publisher management
 		publisherConfig(config.APIEndpoint, *apiKey, *serviceID, wafID, config)
@@ -2194,7 +2194,7 @@ func main() {
 		//Add logging conditions
 		// Ensure logging is defined in config and not being explicitly omitted
 		if !*omitLogs && config.Weblog.Name != "" {
-			AddLoggingCondition(*client, *serviceID, version, config, *withPX)
+			AddLoggingCondition(client, *serviceID, version, config, *withPX)
 		}
 
 		latest, err := client.LatestVersion(&fastly.LatestVersionInput{
@@ -2205,7 +2205,7 @@ func main() {
 		}
 
 		//patch ruleset
-		if PatchRules(*serviceID, wafID, *client) {
+		if PatchRules(*serviceID, wafID, client) {
 			Info.Println("Rule set successfully patched")
 
 		} else {
@@ -2213,7 +2213,7 @@ func main() {
 		}
 
 		//validate the config
-		validateVersion(*client, *serviceID, latest.Number)
+		validateVersion(client, *serviceID, latest.Number)
 		Info.Println("Completed")
 		os.Exit(0)
 	} else {

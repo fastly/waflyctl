@@ -56,7 +56,7 @@ func (c *Client) ListDictionaryItems(i *ListDictionaryItemsInput) ([]*Dictionary
 	}
 
 	var bs []*DictionaryItem
-	if err := decodeJSON(&bs, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &bs); err != nil {
 		return nil, err
 	}
 	sort.Stable(dictionaryItemsByKey(bs))
@@ -91,7 +91,7 @@ func (c *Client) CreateDictionaryItem(i *CreateDictionaryItemInput) (*Dictionary
 	}
 
 	var b *DictionaryItem
-	if err := decodeJSON(&b, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &b); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -143,7 +143,7 @@ func (c *Client) GetDictionaryItem(i *GetDictionaryItemInput) (*DictionaryItem, 
 	}
 
 	var b *DictionaryItem
-	if err := decodeJSON(&b, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &b); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -183,10 +183,53 @@ func (c *Client) UpdateDictionaryItem(i *UpdateDictionaryItemInput) (*Dictionary
 	}
 
 	var b *DictionaryItem
-	if err := decodeJSON(&b, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &b); err != nil {
 		return nil, err
 	}
 	return b, nil
+}
+
+type BatchModifyDictionaryItemsInput struct {
+	Service    string `json:"-,"`
+	Dictionary string `json:"-,"`
+
+	Items []*BatchDictionaryItem `json:"items"`
+}
+
+type BatchDictionaryItem struct {
+
+
+	Operation BatchOperation `json:"op"`
+	ItemKey   string         `json:"item_key"`
+	ItemValue string         `json:"item_value"`
+}
+
+func (c *Client) BatchModifyDictionaryItems(i *BatchModifyDictionaryItemsInput) error {
+
+	if i.Service == "" {
+		return ErrMissingService
+	}
+
+	if i.Dictionary == "" {
+		return ErrMissingDictionary
+	}
+
+	if len(i.Items) > BatchModifyMaximumOperations {
+		return ErrBatchUpdateMaximumOperationsExceeded
+	}
+
+	path := fmt.Sprintf("/service/%s/dictionary/%s/items", i.Service, i.Dictionary)
+	resp, err := c.PatchJSON(path, i, nil)
+	if err != nil {
+		return err
+	}
+
+	var batchModifyResult map[string]string
+	if err := decodeBodyMap(resp.Body, &batchModifyResult); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteDictionaryItemInput is the input parameter to DeleteDictionaryItem.

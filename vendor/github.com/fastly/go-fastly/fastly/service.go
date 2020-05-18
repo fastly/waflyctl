@@ -10,6 +10,7 @@ import (
 type Service struct {
 	ID            string     `mapstructure:"id"`
 	Name          string     `mapstructure:"name"`
+	Type          string     `mapstructure:"type"`
 	Comment       string     `mapstructure:"comment"`
 	CustomerID    string     `mapstructure:"customer_id"`
 	CreatedAt     *time.Time `mapstructure:"created_at"`
@@ -22,6 +23,7 @@ type Service struct {
 type ServiceDetail struct {
 	ID            string     `mapstructure:"id"`
 	Name          string     `mapstructure:"name"`
+	Type          string     `mapstructure:"type"`
 	Comment       string     `mapstructure:"comment"`
 	CustomerID    string     `mapstructure:"customer_id"`
 	ActiveVersion Version    `mapstructure:"active_version"`
@@ -65,7 +67,7 @@ func (c *Client) ListServices(i *ListServicesInput) ([]*Service, error) {
 	}
 
 	var s []*Service
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	sort.Stable(servicesByName(s))
@@ -75,6 +77,7 @@ func (c *Client) ListServices(i *ListServicesInput) ([]*Service, error) {
 // CreateServiceInput is used as input to the CreateService function.
 type CreateServiceInput struct {
 	Name    string `form:"name,omitempty"`
+	Type    string `form:"type,omitempty"`
 	Comment string `form:"comment,omitempty"`
 }
 
@@ -86,7 +89,7 @@ func (c *Client) CreateService(i *CreateServiceInput) (*Service, error) {
 	}
 
 	var s *Service
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -112,7 +115,7 @@ func (c *Client) GetService(i *GetServiceInput) (*Service, error) {
 	}
 
 	var s *Service
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 
@@ -133,7 +136,7 @@ func (c *Client) GetServiceDetails(i *GetServiceInput) (*ServiceDetail, error) {
 	}
 
 	var s *ServiceDetail
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 
@@ -161,7 +164,7 @@ func (c *Client) UpdateService(i *UpdateServiceInput) (*Service, error) {
 	}
 
 	var s *Service
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -185,7 +188,7 @@ func (c *Client) DeleteService(i *DeleteServiceInput) error {
 	}
 
 	var r *statusResp
-	if err := decodeJSON(&r, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &r); err != nil {
 		return err
 	}
 	if !r.Ok() {
@@ -216,7 +219,7 @@ func (c *Client) SearchService(i *SearchServiceInput) (*Service, error) {
 	}
 
 	var s *Service
-	if err := decodeJSON(&s, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &s); err != nil {
 		return nil, err
 	}
 
@@ -240,7 +243,7 @@ func (c *Client) ListServiceDomains(i *ListServiceDomainInput) (ServiceDomainsLi
 
 	var ds ServiceDomainsList
 
-	if err := decodeJSON(&ds, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &ds); err != nil {
 		return nil, err
 	}
 

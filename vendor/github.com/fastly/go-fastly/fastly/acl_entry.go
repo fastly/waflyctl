@@ -54,7 +54,7 @@ func (c *Client) ListACLEntries(i *ListACLEntriesInput) ([]*ACLEntry, error) {
 	}
 
 	var es []*ACLEntry
-	if err := decodeJSON(&es, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &es); err != nil {
 		return nil, err
 	}
 
@@ -92,7 +92,7 @@ func (c *Client) GetACLEntry(i *GetACLEntryInput) (*ACLEntry, error) {
 	}
 
 	var e *ACLEntry
-	if err := decodeJSON(&e, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &e); err != nil {
 		return nil, err
 	}
 
@@ -134,7 +134,7 @@ func (c *Client) CreateACLEntry(i *CreateACLEntryInput) (*ACLEntry, error) {
 	}
 
 	var e *ACLEntry
-	if err := decodeJSON(&e, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &e); err != nil {
 		return nil, err
 	}
 
@@ -170,7 +170,7 @@ func (c *Client) DeleteACLEntry(i *DeleteACLEntryInput) error {
 	}
 
 	var r *statusResp
-	if err := decodeJSON(&r, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &r); err != nil {
 		return err
 	}
 
@@ -218,9 +218,53 @@ func (c *Client) UpdateACLEntry(i *UpdateACLEntryInput) (*ACLEntry, error) {
 	}
 
 	var e *ACLEntry
-	if err := decodeJSON(&e, resp.Body); err != nil {
+	if err := decodeBodyMap(resp.Body, &e); err != nil {
 		return nil, err
 	}
 
 	return e, nil
+}
+
+type BatchModifyACLEntriesInput struct {
+	Service string `json:"-,"`
+	ACL     string `json:"-,"`
+
+	Entries []*BatchACLEntry `json:"entries"`
+}
+
+type BatchACLEntry struct {
+	Operation BatchOperation `json:"op"`
+	ID        string         `json:"id,omitempty"`
+	IP        string         `json:"ip,omitempty"`
+	Subnet    string         `json:"subnet,omitempty"`
+	Negated   bool           `json:"negated,omitempty"`
+	Comment   string         `json:"comment,omitempty"`
+}
+
+func (c *Client) BatchModifyACLEntries(i *BatchModifyACLEntriesInput) error {
+
+	if i.Service == "" {
+		return ErrMissingService
+	}
+
+	if i.ACL == "" {
+		return ErrMissingACL
+	}
+
+	if len(i.Entries) > BatchModifyMaximumOperations {
+		return ErrBatchUpdateMaximumOperationsExceeded
+	}
+
+	path := fmt.Sprintf("/service/%s/acl/%s/entries", i.Service, i.ACL)
+	resp, err := c.PatchJSON(path, i, nil)
+	if err != nil {
+		return err
+	}
+
+	var batchModifyResult map[string]string
+	if err := decodeBodyMap(resp.Body, &batchModifyResult); err != nil {
+		return err
+	}
+
+	return nil
 }
