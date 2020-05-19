@@ -228,6 +228,7 @@ type ConfigSet struct {
 	} `json:"attributes"`
 }
 
+// PatchRulesStatusCheck details the status of a ruleset deployment
 type PatchRulesStatusCheck struct {
 	Data struct {
 		ID         string `json:id`
