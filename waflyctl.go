@@ -462,7 +462,7 @@ func fastlyLogging(client *fastly.Client, serviceID string, config TOMLConfig, v
 			Error.Fatalf("Cannot create logging endpoint %q: CreateSyslog: %v\n", config.Waflog.Name, err)
 		}
 	} else {
-		Warning.Printf("Empty or invalid web log configuration, skipping\n")
+		Warning.Printf("Empty or invalid waf log configuration, skipping\n")
 	}
 }
 
